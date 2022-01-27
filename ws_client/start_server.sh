@@ -1,5 +1,7 @@
 #!/bin/bash
 set -eu
+script_path=$( cd "$(dirname "${BASH_SOURCE[0]}")" ; pwd -P )
+cd "$script_path/.."
 
 # Starts a local web-server that serves the contents of the `doc/` folder,
 # which is the folder to where the web version is compiled.

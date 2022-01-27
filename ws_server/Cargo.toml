@@ -1,0 +1,21 @@
+[package]
+name = "ws_server"
+version = "0.1.0"
+authors = ["Emil Ernerfeldt <emil.ernerfeldt@gmail.com>"]
+edition = "2021"
+rust-version = "1.56"
+
+[dependencies]
+env_logger = "0.9"
+futures-channel = "0.3"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+log = "0.4"
+tokio = { version = "1.0.0", default-features = false, features = [
+    "io-std",
+    "macros",
+    "net",
+    "rt-multi-thread",
+    "time",
+] }
+tokio-tungstenite = "0.16.1"
+tungstenite = { version = "0.16", default-features = false }
