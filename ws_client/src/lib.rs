@@ -18,6 +18,11 @@ pub enum WsMessage {
     Binary(Vec<u8>),
     Text(String),
     Unknown(String),
+
+    /// Only for native
+    Ping(Vec<u8>),
+    /// Only for native
+    Pong(Vec<u8>),
 }
 
 #[derive(Clone, Debug)]

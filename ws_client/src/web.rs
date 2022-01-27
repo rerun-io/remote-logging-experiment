@@ -25,8 +25,8 @@ impl WsSender {
                 self.ws.send_with_u8_array(&data)
             }
             WsMessage::Text(text) => self.ws.send_with_str(&text),
-            WsMessage::Unknown(_) => {
-                panic!();
+            unknown => {
+                panic!("Don't know how to send message: {:?}", unknown);
             }
         };
         result.map_err(string_from_js_value)

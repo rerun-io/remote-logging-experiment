@@ -11,8 +11,10 @@ pub struct WsClientApp {
     #[cfg_attr(feature = "persistence", serde(skip))]
     ws_sender: WsSender,
 
+    #[cfg_attr(feature = "persistence", serde(skip))]
     messages: Vec<WsEvent>,
 
+    #[cfg_attr(feature = "persistence", serde(skip))]
     text_to_send: String,
 }
 
