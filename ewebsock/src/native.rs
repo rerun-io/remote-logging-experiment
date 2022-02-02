@@ -1,4 +1,4 @@
-use crate::{Result, WsEvent, WsMessage};
+use crate::{EventHandler, Result, WsEvent, WsMessage};
 
 pub struct WsSender {
     sender: websocket::sender::Writer<websocket::sync::stream::TcpStream>,
@@ -21,25 +21,13 @@ impl WsSender {
     }
 }
 
-pub struct WsReceiver {
-    rx: std::sync::mpsc::Receiver<WsEvent>,
-}
-
-impl WsReceiver {
-    pub fn try_recv(&self) -> Option<WsEvent> {
-        self.rx.try_recv().ok()
-    }
-}
-
-pub fn ws_connect(url: String) -> Result<(WsReceiver, WsSender)> {
+pub fn ws_connect(url: String, on_event: EventHandler) -> Result<WsSender> {
     let client = websocket::ClientBuilder::new(&url)
         .map_err(|err| err.to_string())?
         .connect_insecure()
         .map_err(|err| err.to_string())?;
 
     let (mut reader, sender) = client.split().map_err(|err| err.to_string())?;
-
-    let (tx, rx) = std::sync::mpsc::channel();
 
     std::thread::Builder::new()
         .name("websocket_receiver".into())
@@ -52,12 +40,16 @@ pub fn ws_connect(url: String) -> Result<(WsReceiver, WsSender)> {
                             websocket::OwnedMessage::Text(text) => WsMessage::Text(text),
                             websocket::OwnedMessage::Close(close_data) => {
                                 eprintln!("Websocket closed: {:#?}", close_data);
+                                on_event(WsEvent::Closed);
                                 break;
                             }
                             websocket::OwnedMessage::Ping(data) => WsMessage::Ping(data),
                             websocket::OwnedMessage::Pong(data) => WsMessage::Pong(data),
                         };
-                        if tx.send(WsEvent::Message(msg)).is_err() {
+                        if matches!(
+                            on_event(WsEvent::Message(msg)),
+                            std::ops::ControlFlow::Break(())
+                        ) {
                             break;
                         }
                     }
@@ -70,5 +62,5 @@ pub fn ws_connect(url: String) -> Result<(WsReceiver, WsSender)> {
         })
         .unwrap();
 
-    Ok((WsReceiver { rx }, WsSender { sender }))
+    Ok(WsSender { sender })
 }

@@ -1,22 +1,13 @@
-use eframe::{egui, epi};
+use eframe::{
+    egui,
+    epi::{self},
+};
 
 use ewebsock::{ws_connect, WsEvent, WsMessage, WsReceiver, WsSender};
 
+#[derive(Default)]
 pub struct WsClientApp {
-    ws_receiver: WsReceiver,
-    frontend: FrontEnd,
-}
-
-impl Default for WsClientApp {
-    fn default() -> Self {
-        // let (ws_receiver, ws_sender) = ws_connect("ws://echo.websocket.events/.ws".into()).unwrap();
-        let (ws_receiver, ws_sender) = ws_connect("ws://127.0.0.1:9002".into()).unwrap();
-
-        Self {
-            ws_receiver,
-            frontend: FrontEnd::new(ws_sender),
-        }
-    }
+    frontend: Option<FrontEnd>,
 }
 
 impl epi::App for WsClientApp {
@@ -24,12 +15,27 @@ impl epi::App for WsClientApp {
         "eframe template"
     }
 
-    fn update(&mut self, ctx: &egui::CtxRef, frame: &epi::Frame) {
-        while let Some(msg) = self.ws_receiver.try_recv() {
-            self.frontend.on_ws_event(msg);
-        }
+    fn setup(
+        &mut self,
+        _ctx: &egui::CtxRef,
+        frame: &epi::Frame,
+        _storage: Option<&dyn epi::Storage>,
+    ) {
+        // let url = "ws://echo.websocket.events/.ws";
+        let url = "ws://127.0.0.1:9002";
 
-        self.frontend.ui(ctx, frame);
+        // Make sure we wake up UI thread on event:
+        let frame = frame.clone();
+        let (ws_receiver, on_event) = WsReceiver::new(move || frame.request_repaint());
+
+        let ws_sender = ws_connect(url.into(), on_event).unwrap();
+        self.frontend = Some(FrontEnd::new(ws_sender, ws_receiver));
+    }
+
+    fn update(&mut self, ctx: &egui::CtxRef, frame: &epi::Frame) {
+        if let Some(frontend) = &mut self.frontend {
+            frontend.ui(ctx, frame);
+        }
     }
 }
 
@@ -37,24 +43,26 @@ impl epi::App for WsClientApp {
 
 struct FrontEnd {
     ws_sender: WsSender,
-    messages: Vec<WsEvent>,
+    ws_receiver: WsReceiver,
+    events: Vec<WsEvent>,
     text_to_send: String,
 }
 
 impl FrontEnd {
-    fn new(ws_sender: WsSender) -> Self {
+    fn new(ws_sender: WsSender, ws_receiver: WsReceiver) -> Self {
         Self {
             ws_sender,
-            messages: Default::default(),
+            ws_receiver,
+            events: Default::default(),
             text_to_send: Default::default(),
         }
     }
 
-    fn on_ws_event(&mut self, msg: WsEvent) {
-        self.messages.push(msg);
-    }
-
     fn ui(&mut self, ctx: &egui::CtxRef, frame: &epi::Frame) {
+        while let Some(event) = self.ws_receiver.try_recv() {
+            self.events.push(event);
+        }
+
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
             egui::menu::bar(ui, |ui| {
@@ -77,7 +85,7 @@ impl FrontEnd {
 
             ui.separator();
             ui.heading("Received messages:");
-            for msg in &self.messages {
+            for msg in &self.events {
                 ui.label(format!("{:?}", msg));
             }
         });

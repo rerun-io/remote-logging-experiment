@@ -32,7 +32,35 @@ pub enum WsEvent {
     Message(WsMessage),
     Error(String),
     Opened,
+    Closed,
 }
 
-type Error = String;
-type Result<T> = std::result::Result<T, Error>;
+pub struct WsReceiver {
+    rx: std::sync::mpsc::Receiver<WsEvent>,
+}
+
+impl WsReceiver {
+    pub fn new(wake_up: impl Fn() + Send + Sync + 'static) -> (Self, EventHandler) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let tx = std::sync::Mutex::new(tx);
+        let on_event = std::sync::Arc::new(move |event| {
+            wake_up(); // wake up UI thread
+            if tx.lock().unwrap().send(event).is_ok() {
+                std::ops::ControlFlow::Continue(())
+            } else {
+                std::ops::ControlFlow::Break(())
+            }
+        });
+        let ws_receiver = WsReceiver { rx };
+        (ws_receiver, on_event)
+    }
+
+    pub fn try_recv(&self) -> Option<WsEvent> {
+        self.rx.try_recv().ok()
+    }
+}
+
+pub type Error = String;
+pub type Result<T> = std::result::Result<T, Error>;
+
+pub type EventHandler = std::sync::Arc<dyn Sync + Send + Fn(WsEvent) -> std::ops::ControlFlow<()>>;
