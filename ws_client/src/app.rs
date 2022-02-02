@@ -1,6 +1,6 @@
 use eframe::{egui, epi};
 
-use crate::{ws_connect, WsEvent, WsMessage, WsReceiver, WsSender};
+use ewebsock::{ws_connect, WsEvent, WsMessage, WsReceiver, WsSender};
 
 #[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "persistence", serde(default))]
