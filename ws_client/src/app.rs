@@ -79,8 +79,7 @@ impl FrontEnd {
                 && ui.input().key_pressed(egui::Key::Enter)
             {
                 self.ws_sender
-                    .send(WsMessage::Text(std::mem::take(&mut self.text_to_send)))
-                    .unwrap();
+                    .send(WsMessage::Text(std::mem::take(&mut self.text_to_send)));
             }
 
             ui.separator();

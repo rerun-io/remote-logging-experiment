@@ -4,7 +4,8 @@
 
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
-fn main() {
+#[tokio::main]
+async fn main() {
     tracing_subscriber::fmt::init();
     let app = ws_client::WsClientApp::default();
     let native_options = eframe::NativeOptions::default();

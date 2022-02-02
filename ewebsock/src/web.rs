@@ -18,7 +18,7 @@ pub struct WsSender {
 }
 
 impl WsSender {
-    pub fn send(&mut self, msg: WsMessage) -> Result<()> {
+    pub fn send(&mut self, msg: WsMessage) {
         let result = match msg {
             WsMessage::Binary(data) => {
                 self.ws.set_binary_type(web_sys::BinaryType::Blob);
@@ -29,7 +29,9 @@ impl WsSender {
                 panic!("Don't know how to send message: {:?}", unknown);
             }
         };
-        result.map_err(string_from_js_value)
+        if let Err(err) = result.map_err(string_from_js_value) {
+            tracing::error!("Failed to send: {:?}", err);
+        }
     }
 }
 

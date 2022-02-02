@@ -4,17 +4,27 @@ version = "0.1.0"
 authors = ["Emil Ernerfeldt <emil.ernerfeldt@gmail.com>"]
 edition = "2021"
 rust-version = "1.56"
+license = "MIT OR Apache-2.0"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[lib]
-crate-type = ["cdylib", "rlib"]
+[features]
+default = ["with_tungstenite"]
+with_tungstenite = ["async-stream", "futures", "futures-util", "tokio", "tokio-tungstenite", "tungstenite"]
 
 [dependencies]
+tracing = "0.1"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-websocket = "0.26"
+# Feature "websocket":
+websocket = {version = "0.26", optional = true } # not so up-to-date
+
+# Feature "tungstenite":
+async-stream = { version = "0.3", optional = true }
+futures = { version = "0.3", optional = true }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"], optional = true }
+tokio = { version = "1.16", features = ["rt", "sync"], optional = true }
+tokio-tungstenite = { version = "0.16", optional = true }
+tungstenite = { version = "0.16", optional = true }
 
 # web:
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -33,6 +43,3 @@ features = [
   "ProgressEvent",
   "WebSocket",
 ]
-
-[features]
-default = []
