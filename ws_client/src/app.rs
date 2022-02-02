@@ -2,31 +2,19 @@ use eframe::{egui, epi};
 
 use ewebsock::{ws_connect, WsEvent, WsMessage, WsReceiver, WsSender};
 
-#[cfg_attr(feature = "persistence", derive(serde::Deserialize, serde::Serialize))]
-#[cfg_attr(feature = "persistence", serde(default))]
 pub struct WsClientApp {
-    #[cfg_attr(feature = "persistence", serde(skip))]
     ws_receiver: WsReceiver,
-
-    #[cfg_attr(feature = "persistence", serde(skip))]
-    ws_sender: WsSender,
-
-    #[cfg_attr(feature = "persistence", serde(skip))]
-    messages: Vec<WsEvent>,
-
-    #[cfg_attr(feature = "persistence", serde(skip))]
-    text_to_send: String,
+    frontend: FrontEnd,
 }
 
 impl Default for WsClientApp {
     fn default() -> Self {
-        let (ws_receiver, ws_sender) = ws_connect("ws://echo.websocket.events/.ws".into()).unwrap();
+        // let (ws_receiver, ws_sender) = ws_connect("ws://echo.websocket.events/.ws".into()).unwrap();
+        let (ws_receiver, ws_sender) = ws_connect("ws://127.0.0.1:9002".into()).unwrap();
 
         Self {
             ws_receiver,
-            ws_sender,
-            messages: Default::default(),
-            text_to_send: Default::default(),
+            frontend: FrontEnd::new(ws_sender),
         }
     }
 }
@@ -36,28 +24,37 @@ impl epi::App for WsClientApp {
         "eframe template"
     }
 
-    fn setup(
-        &mut self,
-        _ctx: &egui::CtxRef,
-        _frame: &epi::Frame,
-        _storage: Option<&dyn epi::Storage>,
-    ) {
-        #[cfg(feature = "persistence")]
-        if let Some(storage) = _storage {
-            *self = epi::get_value(storage, epi::APP_KEY).unwrap_or_default()
-        }
-    }
-
-    #[cfg(feature = "persistence")]
-    fn save(&mut self, storage: &mut dyn epi::Storage) {
-        epi::set_value(storage, epi::APP_KEY, self);
-    }
-
     fn update(&mut self, ctx: &egui::CtxRef, frame: &epi::Frame) {
         while let Some(msg) = self.ws_receiver.try_recv() {
-            self.messages.push(msg);
+            self.frontend.on_ws_event(msg);
         }
 
+        self.frontend.ui(ctx, frame);
+    }
+}
+
+// ----------------------------------------------------------------------------
+
+struct FrontEnd {
+    ws_sender: WsSender,
+    messages: Vec<WsEvent>,
+    text_to_send: String,
+}
+
+impl FrontEnd {
+    fn new(ws_sender: WsSender) -> Self {
+        Self {
+            ws_sender,
+            messages: Default::default(),
+            text_to_send: Default::default(),
+        }
+    }
+
+    fn on_ws_event(&mut self, msg: WsEvent) {
+        self.messages.push(msg);
+    }
+
+    fn ui(&mut self, ctx: &egui::CtxRef, frame: &epi::Frame) {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
             egui::menu::bar(ui, |ui| {

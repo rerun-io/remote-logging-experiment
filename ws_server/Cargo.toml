@@ -6,10 +6,8 @@ edition = "2021"
 rust-version = "1.56"
 
 [dependencies]
-env_logger = "0.9"
 futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
-log = "0.4"
 tokio = { version = "1.0.0", default-features = false, features = [
     "io-std",
     "macros",
@@ -18,4 +16,6 @@ tokio = { version = "1.0.0", default-features = false, features = [
     "time",
 ] }
 tokio-tungstenite = "0.16.1"
+tracing = "0.1"
+tracing-subscriber = "0.3"
 tungstenite = { version = "0.16", default-features = false }
