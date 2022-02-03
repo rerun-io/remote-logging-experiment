@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "ewebsock",
+    "logger",
+    "rr_data",
     "ws_client",
     "ws_server",
 ]

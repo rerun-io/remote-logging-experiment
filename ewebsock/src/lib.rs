@@ -51,7 +51,7 @@ pub struct WsReceiver {
 }
 
 impl WsReceiver {
-    pub fn new(wake_up: impl Fn() + Send + Sync + 'static) -> (Self, EventHandler) {
+    pub fn new_with_callback(wake_up: impl Fn() + Send + Sync + 'static) -> (Self, EventHandler) {
         let (tx, rx) = std::sync::mpsc::channel();
         let tx = std::sync::Mutex::new(tx);
         let on_event = std::sync::Arc::new(move |event| {
@@ -75,3 +75,9 @@ pub type Error = String;
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub type EventHandler = std::sync::Arc<dyn Sync + Send + Fn(WsEvent) -> std::ops::ControlFlow<()>>;
+
+pub fn connect(url: impl Into<String>) -> Result<(WsSender, WsReceiver)> {
+    let (ws_receiver, on_event) = WsReceiver::new_with_callback(|| {});
+    let ws_sender = ws_connect(url.into(), on_event)?;
+    Ok((ws_sender, ws_receiver))
+}

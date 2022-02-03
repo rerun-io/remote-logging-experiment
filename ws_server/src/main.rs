@@ -1,8 +1,22 @@
-use futures_util::{SinkExt, StreamExt};
-use std::{net::SocketAddr, time::Duration};
+use futures_util::{stream::SplitSink, SinkExt, StreamExt};
+use std::{net::SocketAddr, ops::ControlFlow, time::Duration};
 use tokio::net::{TcpListener, TcpStream};
-use tokio_tungstenite::{accept_async, tungstenite::Error};
+use tokio_tungstenite::{accept_async, tungstenite::Error, WebSocketStream};
 use tungstenite::{Message, Result};
+
+// pub struct Topic {
+// }
+
+// pub struct Broadcaster {
+//     tx: tokio::sync::broadcast::Sender<Arc[u8]>,
+// }
+
+// impl Broadcaster {
+//     fn new() -> Self {
+//         let (tx, _rx) = tokio::sync::broadcast::channel(1024);
+//         Self { tx }
+//     }
+// }
 
 async fn accept_connection(peer: SocketAddr, stream: TcpStream) {
     if let Err(e) = handle_connection(peer, stream).await {
@@ -14,8 +28,15 @@ async fn accept_connection(peer: SocketAddr, stream: TcpStream) {
 }
 
 async fn handle_connection(peer: SocketAddr, stream: TcpStream) -> Result<()> {
+    let span = tracing::span!(
+        tracing::Level::INFO,
+        "Connection",
+        peer = peer.to_string().as_str()
+    );
+    let _enter = span.enter();
+    tracing::info!("New WebSocket connection");
+
     let ws_stream = accept_async(stream).await.expect("Failed to accept");
-    tracing::info!("New WebSocket connection: {}", peer);
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
     let mut interval = tokio::time::interval(Duration::from_millis(1000));
 
@@ -25,15 +46,18 @@ async fn handle_connection(peer: SocketAddr, stream: TcpStream) -> Result<()> {
         tokio::select! {
             msg = ws_receiver.next() => {
                 match msg {
-                    Some(msg) => {
-                        let msg = msg?;
-                        if msg.is_text() ||msg.is_binary() {
-                            ws_sender.send(msg).await?;
-                        } else if msg.is_close() {
+                    Some(Ok(msg)) => {
+                        if on_msg(&mut ws_sender, msg).await == ControlFlow::Break(()) {
                             break;
                         }
                     }
-                    None => break,
+                    Some(Err(err)) => {
+                        tracing::warn!("Error message: {:?}", err);
+                        break;
+                    }
+                    None => {
+                        break;
+                    }
                 }
             }
             _ = interval.tick() => {
@@ -43,6 +67,31 @@ async fn handle_connection(peer: SocketAddr, stream: TcpStream) -> Result<()> {
     }
 
     Ok(())
+}
+
+async fn on_msg(
+    ws_sender: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
+    msg: Message,
+) -> ControlFlow<()> {
+    tracing::info!("Message received");
+    if let Message::Binary(binary) = &msg {
+        if let Ok(rr_msg) = rr_data::Message::decode(binary) {
+            tracing::info!("Received a message:\n{:#?}\n", rr_msg);
+        }
+    }
+
+    if msg.is_text() || msg.is_binary() {
+        if let Err(err) = ws_sender.send(msg).await {
+            tracing::error!("Error sending: {:?}", err);
+            ControlFlow::Break(())
+        } else {
+            ControlFlow::Continue(())
+        }
+    } else if msg.is_close() {
+        ControlFlow::Break(())
+    } else {
+        ControlFlow::Continue(())
+    }
 }
 
 #[tokio::main]
@@ -57,8 +106,6 @@ async fn main() {
         let peer = stream
             .peer_addr()
             .expect("connected streams should have a peer address");
-        tracing::info!("Peer address: {}", peer);
-
         tokio::spawn(accept_connection(peer, stream));
     }
 }

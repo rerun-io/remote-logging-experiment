@@ -1,0 +1,12 @@
+[package]
+name = "rr_data"
+version = "0.1.0"
+authors = ["Emil Ernerfeldt <emil.ernerfeldt@gmail.com>"]
+edition = "2021"
+rust-version = "1.56"
+
+[dependencies]
+anyhow = "1"
+bincode = "1.3"
+once_cell = "1.9"
+serde = { version = "1", features = ["derive"] }

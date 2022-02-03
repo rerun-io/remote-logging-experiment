@@ -1,8 +1,4 @@
-use eframe::{
-    egui,
-    epi::{self},
-};
-
+use eframe::{egui, epi};
 use ewebsock::{ws_connect, WsEvent, WsMessage, WsReceiver, WsSender};
 
 #[derive(Default)]
@@ -12,7 +8,7 @@ pub struct WsClientApp {
 
 impl epi::App for WsClientApp {
     fn name(&self) -> &str {
-        "eframe template"
+        "rr websocket client"
     }
 
     fn setup(
@@ -26,7 +22,8 @@ impl epi::App for WsClientApp {
 
         // Make sure we wake up UI thread on event:
         let frame = frame.clone();
-        let (ws_receiver, on_event) = WsReceiver::new(move || frame.request_repaint());
+        let (ws_receiver, on_event) =
+            WsReceiver::new_with_callback(move || frame.request_repaint());
 
         let ws_sender = ws_connect(url.into(), on_event).unwrap();
         self.frontend = Some(FrontEnd::new(ws_sender, ws_receiver));
@@ -64,7 +61,6 @@ impl FrontEnd {
         }
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            // The top panel is often a good place for a menu bar:
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
                     if ui.button("Quit").clicked() {

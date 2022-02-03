@@ -1,5 +1,5 @@
 [package]
-name = "ws_client"
+name = "logger"
 version = "0.1.0"
 authors = ["Emil Ernerfeldt <emil.ernerfeldt@gmail.com>"]
 edition = "2021"
@@ -11,10 +11,14 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 eframe = "0.16.0" # Gives us egui, epi and web+native backends
 ewebsock = { path = "../ewebsock" }
+parking_lot = "0.12"
+rr_data = { path = "../rr_data" }
 serde = { version = "1", features = ["derive"] }
-tracing = "0.1"
+static_assertions = "1.1"
+tracing = { version = "0.1", features = ["attributes"] }
+tracing-subscriber = "0.3"
+xxhash-rust = { version = "0.8.2", features = ["xxh64"] }
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tracing-subscriber = "0.3"
 tokio = { version = "1.16", features = ["macros", "rt-multi-thread"] }
