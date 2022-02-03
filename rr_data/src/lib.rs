@@ -1,3 +1,48 @@
+/// The top-level message sent to/from a pub-sub server
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub enum PubSubMsg {
+    /// A new topic has been created.
+    NewTopic(TopicId, TopicMeta),
+
+    /// A new message of a given topic.
+    TopicMsg(TopicId, Vec<u8>),
+
+    /// Please tell me about new messages on this topic.
+    SubscribeTo(TopicId),
+}
+
+impl PubSubMsg {
+    pub fn encode(&self) -> Vec<u8> {
+        use bincode::Options as _;
+        bincode::DefaultOptions::new().serialize(self).unwrap()
+    }
+
+    pub fn decode(bytes: &[u8]) -> anyhow::Result<Self> {
+        use anyhow::Context as _;
+        use bincode::Options as _;
+        bincode::DefaultOptions::new()
+            .deserialize(bytes)
+            .context("bincode")
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct TopicId(uuid::Uuid);
+
+impl TopicId {
+    pub fn random() -> Self {
+        Self(uuid::Uuid::new_v4())
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct TopicMeta {
+    pub created: Time,
+    pub name: String,
+}
+
+// ----------------------------------------------------------------------------
+
 /// A date-time represented as nanoseconds since unix epoch
 #[derive(Copy, Clone, Debug, PartialEq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct Time(i64);

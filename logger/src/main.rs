@@ -2,7 +2,11 @@
 async fn main() {
     let url = "ws://127.0.0.1:9002";
 
-    let rr_logger = logger::RrLogger::to_ws_server(url.into());
+    let topic_meta = rr_data::TopicMeta {
+        created: rr_data::Time::now(),
+        name: "logger".into(),
+    };
+    let rr_logger = logger::RrLogger::to_ws_server(url.into(), topic_meta);
 
     use tracing_subscriber::prelude::*;
 
@@ -21,10 +25,15 @@ async fn main() {
         .with(rr_logger)
         .init();
 
-    my_function();
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
     my_function();
 
-    std::thread::sleep(std::time::Duration::from_secs(1));
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
+    my_function();
+
+    std::thread::sleep(std::time::Duration::from_millis(100));
 }
 
 #[tracing::instrument]

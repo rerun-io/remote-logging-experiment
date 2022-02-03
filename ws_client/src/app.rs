@@ -1,5 +1,6 @@
 use eframe::{egui, epi};
 use ewebsock::{ws_connect, WsEvent, WsMessage, WsReceiver, WsSender};
+use rr_data::PubSubMsg;
 
 #[derive(Default)]
 pub struct WsClientApp {
@@ -41,7 +42,7 @@ impl epi::App for WsClientApp {
 struct FrontEnd {
     ws_sender: WsSender,
     ws_receiver: WsReceiver,
-    events: Vec<WsEvent>,
+    events: Vec<String>,
     text_to_send: String,
 }
 
@@ -57,7 +58,30 @@ impl FrontEnd {
 
     fn ui(&mut self, ctx: &egui::CtxRef, frame: &epi::Frame) {
         while let Some(event) = self.ws_receiver.try_recv() {
-            self.events.push(event);
+            if let WsEvent::Message(WsMessage::Binary(payload)) = &event {
+                if let Ok(pub_sub_msg) = rr_data::PubSubMsg::decode(payload) {
+                    match pub_sub_msg {
+                        PubSubMsg::NewTopic(topic_id, topic_meta) => {
+                            self.events
+                                .push(format!("Subscribing to new topic: {:?}", topic_meta));
+                            self.ws_sender
+                                .send(WsMessage::Binary(PubSubMsg::SubscribeTo(topic_id).encode()));
+                            continue;
+                        }
+                        PubSubMsg::TopicMsg(_topic_id, payload) => {
+                            if let Ok(rr_msg) = rr_data::Message::decode(&payload) {
+                                self.events.push(format!("Message: {:?}", rr_msg));
+                                continue;
+                            }
+                        }
+                        PubSubMsg::SubscribeTo(_) => {
+                            // weird
+                        }
+                    }
+                    continue;
+                }
+            }
+            self.events.push(format!("Recevied {:?}", event));
         }
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -80,8 +104,8 @@ impl FrontEnd {
 
             ui.separator();
             ui.heading("Received messages:");
-            for msg in &self.events {
-                ui.label(format!("{:?}", msg));
+            for event in &self.events {
+                ui.label(event);
             }
         });
     }

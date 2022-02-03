@@ -1,4 +1,5 @@
 use parking_lot::Mutex;
+use rr_data::PubSubMsg;
 use std::sync::Arc;
 
 struct RrConnection {
@@ -12,25 +13,34 @@ impl RrConnection {
         Self { send, _recv }
     }
 
-    fn send_msg(&mut self, rr_msg: rr_data::Message) {
-        self.send.send(ewebsock::WsMessage::Binary(rr_msg.encode()));
+    fn send(&mut self, msg: rr_data::PubSubMsg) {
+        self.send.send(ewebsock::WsMessage::Binary(msg.encode()));
     }
 }
 
 // ----------------------------------------------------------------------------
 
 pub struct RrLogger {
+    topic_id: rr_data::TopicId,
     connection: Arc<Mutex<RrConnection>>,
 }
 
 // static_assertions::assert_impl_all!(RrLogger: Send, Sync);
 
 impl RrLogger {
-    pub fn to_ws_server(url: String) -> Self {
-        let connection = RrConnection::to_ws_server(url);
+    pub fn to_ws_server(url: String, topic_meta: rr_data::TopicMeta) -> Self {
+        let topic_id = rr_data::TopicId::random();
+        let mut connection = RrConnection::to_ws_server(url);
+        connection.send(PubSubMsg::NewTopic(topic_id, topic_meta));
         Self {
+            topic_id,
             connection: Arc::new(Mutex::new(connection)),
         }
+    }
+
+    pub fn send(&self, msg: rr_data::Message) {
+        let msg = rr_data::PubSubMsg::TopicMsg(self.topic_id, msg.encode());
+        self.connection.lock().send(msg);
     }
 }
 
@@ -88,9 +98,7 @@ impl<S: tracing::Subscriber> tracing_subscriber::layer::Layer<S> for RrLogger {
         };
 
         let rr_msg_enum = rr_data::MessageEnum::DataEvent(rr_event);
-        self.connection
-            .lock()
-            .send_msg(rr_data::Message::now(rr_msg_enum));
+        self.send(rr_data::Message::now(rr_msg_enum));
     }
 
     fn on_enter(&self, id: &tracing::Id, _ctx: tracing_subscriber::layer::Context<'_, S>) {
