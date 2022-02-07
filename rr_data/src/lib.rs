@@ -48,8 +48,14 @@ pub struct TopicMeta {
 pub struct Time(i64);
 
 impl Time {
+    #[inline]
     pub fn now() -> Self {
         Self(nanos_since_epoch())
+    }
+
+    #[inline]
+    pub fn nanos_since_epoch(&self) -> i64 {
+        self.0
     }
 }
 
@@ -143,6 +149,25 @@ pub enum Value {
         description: String,
         details: String,
     },
+}
+
+impl std::fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::String(value) => value.fmt(f),
+            Self::I64(value) => value.fmt(f),
+            Self::U64(value) => value.fmt(f),
+            Self::F64(value) => value.fmt(f),
+            Self::Bool(value) => value.fmt(f),
+            Self::Debug(value) => value.fmt(f),
+            Self::Error {
+                description,
+                details,
+            } => {
+                write!(f, "Error: {}, {}", description, details)
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]

@@ -16,9 +16,11 @@ include = [
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-eframe = "0.16.0" # Gives us egui, epi and web+native backends
 ewebsock = { path = "../ewebsock" }
 rr_data = { path = "../rr_data" }
+
+chrono = "0.4"
+eframe = { version = "0.16.0", features = ["persistence"] }
 serde = { version = "1", features = ["derive"] }
 tracing = "0.1"
 
