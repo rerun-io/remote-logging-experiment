@@ -38,6 +38,8 @@ async fn main() {
 
 #[tracing::instrument]
 pub fn my_function() {
+    let span = tracing::span!(tracing::Level::INFO, "my_span");
+    let _enter = span.enter();
     tracing::info!("Hello from my_function");
     tracing::event!(tracing::Level::INFO, value = 42_i32, "This is an event");
 }

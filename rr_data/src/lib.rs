@@ -113,29 +113,107 @@ impl Message {
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum MessageEnum {
-    // NewCallsite(RrCallsite),
-    // NewSpan(RrSpan),
-    // EnterSpan(RrSpandId),
-    // ExitSpan(RrSpanId),
+    NewCallsite(Callsite),
+    NewSpan(Span),
+    EnterSpan(SpanId),
+    ExitSpan(SpanId),
     DataEvent(DataEvent),
 }
 
 /// A place in the source code where we may be logging data from.
-// pub struct RrCallsite {
-//     pub name: String,
-//     pub target: String,
-//     pub level: RrLogLevel,
-//     pub location: RrLocation,
-//     pub fields: RrKvPairs,
-//     pub id: RrCallsiteId,
-//     pub kind: RrCallsiteKind,
-// }
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct Callsite {
+    pub id: CallsiteId,
+    pub kind: CallsiteKind,
+    pub name: String,
+    pub level: LogLevel,
+    pub location: Location,
+    /// Names of data that may be provided in later calls
+    pub field_names: Vec<String>,
+}
+
+/// Describes a source code location.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct Location {
+    /// e.g. the name of the module/app that produced the log
+    pub module: String,
+    /// File name
+    pub file: Option<String>,
+    /// Line number
+    pub line: Option<u32>,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct Span {
+    pub id: SpanId,
+    /// `None` if this is a new root.
+    pub parent_span_id: Option<SpanId>,
+    pub callsite_id: CallsiteId,
+}
+
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum LogLevel {
+    /// The "trace" level.
+    ///
+    /// Designates very low priority, often extremely verbose, information.
+    Trace = 0,
+
+    /// The "debug" level.
+    ///
+    /// Designates lower priority information.
+    Debug = 1,
+
+    /// The "info" level.
+    ///
+    /// Designates useful information.
+    Info = 2,
+
+    /// The "warn" level.
+    ///
+    /// Designates hazardous situations.
+    Warn = 3,
+
+    /// The "error" level.
+    ///
+    /// Designates very serious errors.
+    Error = 4,
+}
+
+impl std::fmt::Display for LogLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Trace => "Trace".fmt(f),
+            Self::Debug => "Debug".fmt(f),
+            Self::Info => "Info".fmt(f),
+            Self::Warn => "Warn".fmt(f),
+            Self::Error => "Error".fmt(f),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub enum CallsiteKind {
+    Event,
+    Span,
+}
+
+impl std::fmt::Display for CallsiteKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Event => "Event".fmt(f),
+            Self::Span => "Span".fmt(f),
+        }
+    }
+}
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct DataEvent {
-    pub callsite: CallsiteId,
-    pub fields: Vec<(String, Value)>,
+    pub callsite_id: CallsiteId,
+    pub parent_span_id: Option<SpanId>,
+    pub fields: FieldSet,
 }
+
+pub type FieldSet = Vec<(String, Value)>;
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Value {
@@ -170,5 +248,20 @@ impl std::fmt::Display for Value {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct CallsiteId(pub u64);
+
+impl std::fmt::Display for CallsiteId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        format!("{:016x}", self.0).fmt(f)
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+pub struct SpanId(pub u64);
+
+impl std::fmt::Display for SpanId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        format!("{:016X}", self.0).fmt(f)
+    }
+}

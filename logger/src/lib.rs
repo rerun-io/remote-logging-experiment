@@ -53,17 +53,78 @@ impl<S: tracing::Subscriber> tracing_subscriber::layer::Layer<S> for RrLogger {
         &self,
         metadata: &'static tracing::Metadata<'static>,
     ) -> tracing::subscriber::Interest {
-        eprintln!("\nregister_callsite: {:?}", metadata);
+        let kind = if metadata.is_event() {
+            rr_data::CallsiteKind::Event
+        } else {
+            rr_data::CallsiteKind::Span
+        };
+
+        let level = if *metadata.level() == tracing::Level::ERROR {
+            rr_data::LogLevel::Error
+        } else if *metadata.level() == tracing::Level::WARN {
+            rr_data::LogLevel::Warn
+        } else if *metadata.level() == tracing::Level::INFO {
+            rr_data::LogLevel::Info
+        } else if *metadata.level() == tracing::Level::DEBUG {
+            rr_data::LogLevel::Debug
+        } else {
+            rr_data::LogLevel::Trace
+        };
+
+        let field_names = metadata
+            .fields()
+            .iter()
+            .map(|field| field.name().to_owned())
+            .collect();
+
+        let location = rr_data::Location {
+            module: metadata.target().to_string(),
+            file: metadata.file().map(|t| t.to_string()),
+            line: metadata.line(),
+        };
+
+        let rr_callsite = rr_data::Callsite {
+            id: to_callsite_id(&metadata.callsite()),
+            kind,
+            name: metadata.name().to_string(),
+            level,
+            location,
+            field_names,
+        };
+        self.send(rr_data::Message::now(rr_data::MessageEnum::NewCallsite(
+            rr_callsite,
+        )));
+
         tracing::subscriber::Interest::always()
+    }
+
+    fn enabled(
+        &self,
+        _metadata: &tracing::Metadata<'_>,
+        _ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) -> bool {
+        true
     }
 
     fn on_new_span(
         &self,
         attrs: &tracing::span::Attributes<'_>,
         id: &tracing::Id,
-        _ctx: tracing_subscriber::layer::Context<'_, S>,
+        ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        eprintln!("\non_new_span: {:?} {:?}", attrs, id);
+        let parent_span_id = attrs
+            .parent()
+            .map(to_span_id)
+            .or_else(|| ctx.current_span().id().map(to_span_id));
+
+        let rr_span = rr_data::Span {
+            id: to_span_id(id),
+            callsite_id: to_callsite_id(&attrs.metadata().callsite()),
+            parent_span_id,
+        };
+        self.send(rr_data::Message::now(rr_data::MessageEnum::NewSpan(
+            rr_span,
+        )));
     }
 
     fn on_record(
@@ -85,28 +146,35 @@ impl<S: tracing::Subscriber> tracing_subscriber::layer::Layer<S> for RrLogger {
     }
 
     fn on_event(&self, event: &tracing::Event<'_>, ctx: tracing_subscriber::layer::Context<'_, S>) {
-        eprintln!("\non_event: {:#?}", event);
-        dbg!(event.parent());
-        dbg!(ctx.current_span());
+        let parent_span_id = event
+            .parent()
+            .map(to_span_id)
+            .or_else(|| ctx.current_span().id().map(to_span_id));
 
         let mut kv_collector = KvCollector::default();
         event.record(&mut kv_collector);
 
         let rr_event = rr_data::DataEvent {
-            callsite: rr_data::CallsiteId(hash(event.metadata().callsite())),
+            callsite_id: to_callsite_id(&event.metadata().callsite()),
+            parent_span_id,
             fields: kv_collector.values,
         };
 
-        let rr_msg_enum = rr_data::MessageEnum::DataEvent(rr_event);
-        self.send(rr_data::Message::now(rr_msg_enum));
+        self.send(rr_data::Message::now(rr_data::MessageEnum::DataEvent(
+            rr_event,
+        )));
     }
 
     fn on_enter(&self, id: &tracing::Id, _ctx: tracing_subscriber::layer::Context<'_, S>) {
-        eprintln!("\non_enter: {:?}", id);
+        self.send(rr_data::Message::now(rr_data::MessageEnum::EnterSpan(
+            to_span_id(id),
+        )));
     }
 
     fn on_exit(&self, id: &tracing::Id, _ctx: tracing_subscriber::layer::Context<'_, S>) {
-        eprintln!("\non_exit: {:?}", id);
+        self.send(rr_data::Message::now(rr_data::MessageEnum::ExitSpan(
+            to_span_id(id),
+        )));
     }
 
     fn on_close(&self, id: tracing::Id, _ctx: tracing_subscriber::layer::Context<'_, S>) {
@@ -173,4 +241,12 @@ pub fn hash(value: impl std::hash::Hash) -> u64 {
     let mut hasher = wyhash::WyHash::default();
     value.hash(&mut hasher);
     hasher.finish()
+}
+
+fn to_callsite_id(id: &tracing::callsite::Identifier) -> rr_data::CallsiteId {
+    rr_data::CallsiteId(hash(id))
+}
+
+fn to_span_id(id: &tracing::Id) -> rr_data::SpanId {
+    rr_data::SpanId(hash(id))
 }
