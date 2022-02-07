@@ -38,7 +38,7 @@ impl WsSender {
 pub fn ws_connect(url: String, on_event: EventHandler) -> Result<WsSender> {
     // Based on https://rustwasm.github.io/wasm-bindgen/examples/websockets.html
 
-    console_log!("spawn_ws_client");
+    console_log!("spawn_viewer");
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::JsCast as _;
 

@@ -7,7 +7,7 @@
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
-    let app = ws_client::WsClientApp::default();
+    let app = viewer::WsClientApp::default();
     let native_options = eframe::NativeOptions::default();
     eframe::run_native(Box::new(app), native_options);
 }

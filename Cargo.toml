@@ -3,7 +3,7 @@ members = [
     "ewebsock",
     "logger",
     "rr_data",
-    "ws_client",
+    "viewer",
     "ws_server",
 ]
 

@@ -11,7 +11,7 @@ The server handles communication between the "logger" and the "viewer":
 `cargo run --release -p ws_server`
 
 The viewer shows the logging data as it comes in:
-`cargo run --release -p ws_client`
+`cargo run --release -p viewer`
 
 Log some data:
 `cargo run --release -p logger`

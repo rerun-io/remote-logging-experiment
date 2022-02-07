@@ -1850,6 +1850,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 
 [[package]]
+name = "viewer"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "eframe",
+ "ewebsock",
+ "rr_data",
+ "serde",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "wasi"
 version = "0.10.2+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2127,20 +2141,6 @@ dependencies = [
  "web-sys",
  "winapi",
  "x11-dl",
-]
-
-[[package]]
-name = "ws_client"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "eframe",
- "ewebsock",
- "rr_data",
- "serde",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
