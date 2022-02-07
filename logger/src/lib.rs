@@ -170,8 +170,7 @@ impl tracing::field::Visit for KvCollector {
 #[inline]
 pub fn hash(value: impl std::hash::Hash) -> u64 {
     use std::hash::Hasher as _;
-    // let mut hasher = wyhash::WyHash::default();
-    let mut hasher = xxhash_rust::xxh64::Xxh64::new(0);
+    let mut hasher = wyhash::WyHash::default();
     value.hash(&mut hasher);
     hasher.finish()
 }

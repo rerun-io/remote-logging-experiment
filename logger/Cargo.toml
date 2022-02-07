@@ -17,7 +17,7 @@ serde = { version = "1", features = ["derive"] }
 static_assertions = "1.1"
 tracing = { version = "0.1", features = ["attributes"] }
 tracing-subscriber = "0.3"
-xxhash-rust = { version = "0.8.2", features = ["xxh64"] }
+wyhash = "0.5"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
