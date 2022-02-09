@@ -33,7 +33,7 @@ async fn main() {
         let _guard = main_span.entered();
 
         // is there a simpler way to do this?
-        let child_span = tracing::info_span!("task0");
+        let child_span = tracing::info_span!(parent: None, "task0");
         child_span.follows_from(tracing::Span::current());
         let handle_0 = tokio::task::spawn_blocking(move || {
             child_span.in_scope(|| {
@@ -41,7 +41,7 @@ async fn main() {
             });
         });
 
-        let child_span = tracing::info_span!("task1");
+        let child_span = tracing::info_span!(parent: None, "task1");
         child_span.follows_from(tracing::Span::current());
         let handle_1 = tokio::task::spawn_blocking(move || {
             child_span.in_scope(|| {

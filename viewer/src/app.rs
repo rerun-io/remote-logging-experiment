@@ -13,7 +13,7 @@ impl epi::App for WsClientApp {
 
     fn setup(
         &mut self,
-        _ctx: &egui::CtxRef,
+        _ctx: &egui::Context,
         frame: &epi::Frame,
         _storage: Option<&dyn epi::Storage>,
     ) {
@@ -29,7 +29,7 @@ impl epi::App for WsClientApp {
         self.frontend = Some(Viewer::new(ws_sender, ws_receiver));
     }
 
-    fn update(&mut self, ctx: &egui::CtxRef, frame: &epi::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &epi::Frame) {
         if let Some(frontend) = &mut self.frontend {
             frontend.ui(ctx, frame);
         }

@@ -11,7 +11,7 @@ pub struct Viewer {
     ws_sender: WsSender,
     ws_receiver: WsReceiver,
     event_log: crate::event_log::EventLog,
-    flamegraph: crate::flamegraph::FlameGraph,
+    span_tree: crate::span_tree::SpanTree,
     view: View,
 }
 
@@ -21,12 +21,12 @@ impl Viewer {
             ws_sender,
             ws_receiver,
             event_log: Default::default(),
-            flamegraph: Default::default(),
-            view: View::EventLog,
+            span_tree: Default::default(),
+            view: View::SpanTree,
         }
     }
 
-    pub fn ui(&mut self, ctx: &egui::CtxRef, frame: &epi::Frame) {
+    pub fn ui(&mut self, ctx: &egui::Context, frame: &epi::Frame) {
         while let Some(event) = self.ws_receiver.try_recv() {
             if let WsEvent::Message(WsMessage::Binary(payload)) = &event {
                 if let Ok(pub_sub_msg) = rr_data::PubSubMsg::decode(payload) {
@@ -41,7 +41,7 @@ impl Viewer {
                         }
                         rr_data::PubSubMsg::TopicMsg(_topic_id, payload) => {
                             if let Ok(rr_msg) = rr_data::Message::decode(&payload) {
-                                self.flamegraph.on_mesage(&rr_msg);
+                                self.span_tree.on_mesage(&rr_msg);
                                 self.event_log.on_message(rr_msg);
                                 continue;
                             }
@@ -72,10 +72,10 @@ impl Viewer {
 
         egui::CentralPanel::default().show(ctx, |ui| match self.view {
             View::EventLog => {
-                self.event_log.ui(ui);
+                self.event_log.ui(ui, &self.span_tree);
             }
             View::SpanTree => {
-                self.flamegraph.tree_ui(ui);
+                self.span_tree.tree_ui(ui);
             }
         });
     }

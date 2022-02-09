@@ -1,4 +1,5 @@
 [workspace]
+resolver = "2"
 members = [
     "ewebsock",
     "logger",
@@ -8,8 +9,8 @@ members = [
 ]
 
 [patch.crates-io]
-# If you want to use the bleeding edge version of `egui`:
-# eframe = { git = "https://github.com/emilk/egui", branch = "master" }
+# If you want to use the bleeding edge version of egui/eframe:
+eframe = { git = "https://github.com/emilk/egui", branch = "master" }
 
-# If you fork https://github.com/emilk/egui you can test with:
+# If you want to use a fork:
 # eframe = { path = "../egui/eframe" }

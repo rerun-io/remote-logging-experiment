@@ -142,7 +142,12 @@ impl<S: tracing::Subscriber> tracing_subscriber::layer::Layer<S> for RrLogger {
         follows: &tracing::Id,
         _ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        eprintln!("\non_follows_from: {:?} follows {:?}", span, follows);
+        self.send(rr_data::Message::now(
+            rr_data::MessageEnum::SpanFollowsFrom {
+                span: to_span_id(span),
+                follows: to_span_id(follows),
+            },
+        ));
     }
 
     fn on_event(&self, event: &tracing::Event<'_>, ctx: tracing_subscriber::layer::Context<'_, S>) {
@@ -178,7 +183,9 @@ impl<S: tracing::Subscriber> tracing_subscriber::layer::Layer<S> for RrLogger {
     }
 
     fn on_close(&self, id: tracing::Id, _ctx: tracing_subscriber::layer::Context<'_, S>) {
-        eprintln!("\non_close: {:?}", id);
+        self.send(rr_data::Message::now(rr_data::MessageEnum::DestroySpan(
+            to_span_id(&id),
+        )));
     }
 
     fn on_id_change(

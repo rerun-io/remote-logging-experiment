@@ -114,9 +114,18 @@ impl Message {
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum MessageEnum {
     NewCallsite(Callsite),
+
     NewSpan(Span),
     EnterSpan(SpanId),
     ExitSpan(SpanId),
+    DestroySpan(SpanId),
+
+    /// A span has been spawned from another.
+    SpanFollowsFrom {
+        span: SpanId,
+        follows: SpanId,
+    },
+
     DataEvent(DataEvent),
 }
 
@@ -141,6 +150,18 @@ pub struct Location {
     pub file: Option<String>,
     /// Line number
     pub line: Option<u32>,
+}
+
+impl std::fmt::Display for Location {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self { module, file, line } = self;
+        match (file, line) {
+            (None, None) => module.fmt(f),
+            (Some(file), None) => write!(f, "{} {}", module, file),
+            (None, Some(line)) => write!(f, "{}, line {}", module, line),
+            (Some(file), Some(line)) => write!(f, "{} {}:{}", module, file, line),
+        }
+    }
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -232,12 +253,12 @@ pub enum Value {
 impl std::fmt::Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::String(value) => value.fmt(f),
+            Self::String(value) => format!("{:?}", value).fmt(f),
             Self::I64(value) => value.fmt(f),
             Self::U64(value) => value.fmt(f),
             Self::F64(value) => value.fmt(f),
             Self::Bool(value) => value.fmt(f),
-            Self::Debug(value) => value.fmt(f),
+            Self::Debug(value) => format!("{:?}", value).fmt(f),
             Self::Error {
                 description,
                 details,
