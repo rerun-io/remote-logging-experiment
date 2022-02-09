@@ -23,6 +23,7 @@ rr_data = { path = "../rr_data" }
 serde = { version = "1", features = ["derive"] }
 static_assertions = "1.1"
 tracing = { version = "0.1", features = ["attributes"] }
+tracing-futures = "0.2.5"
 tracing-subscriber = "0.3"
 wyhash = "0.5"
 

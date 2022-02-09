@@ -142,7 +142,7 @@ impl<S: tracing::Subscriber> tracing_subscriber::layer::Layer<S> for RrLogger {
         follows: &tracing::Id,
         _ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        eprintln!("\non_follows_from: {:?} {:?}", span, follows);
+        eprintln!("\non_follows_from: {:?} follows {:?}", span, follows);
     }
 
     fn on_event(&self, event: &tracing::Event<'_>, ctx: tracing_subscriber::layer::Context<'_, S>) {
