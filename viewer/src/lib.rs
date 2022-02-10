@@ -6,6 +6,7 @@
 
 mod app;
 mod event_log;
+mod flamegraph;
 mod misc;
 mod span_tree;
 mod viewer;

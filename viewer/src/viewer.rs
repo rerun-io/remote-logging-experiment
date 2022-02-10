@@ -5,14 +5,16 @@ use ewebsock::{WsEvent, WsMessage, WsReceiver, WsSender};
 enum View {
     EventLog,
     SpanTree,
+    Flamegraph,
 }
 
 pub struct Viewer {
     ws_sender: WsSender,
     ws_receiver: WsReceiver,
-    event_log: crate::event_log::EventLog,
-    span_tree: crate::span_tree::SpanTree,
     view: View,
+    span_tree: crate::span_tree::SpanTree,
+    event_log: crate::event_log::EventLog,
+    flame_graph: crate::flamegraph::FlameGraph,
 }
 
 impl Viewer {
@@ -20,9 +22,10 @@ impl Viewer {
         Self {
             ws_sender,
             ws_receiver,
-            event_log: Default::default(),
+            view: View::Flamegraph,
             span_tree: Default::default(),
-            view: View::SpanTree,
+            event_log: Default::default(),
+            flame_graph: Default::default(),
         }
     }
 
@@ -67,6 +70,7 @@ impl Viewer {
                 ui.label("View:");
                 ui.selectable_value(&mut self.view, View::EventLog, "Event log");
                 ui.selectable_value(&mut self.view, View::SpanTree, "Span tree");
+                ui.selectable_value(&mut self.view, View::Flamegraph, "Flame graph");
             });
         });
 
@@ -76,6 +80,9 @@ impl Viewer {
             }
             View::SpanTree => {
                 self.span_tree.tree_ui(ui);
+            }
+            View::Flamegraph => {
+                self.flame_graph.ui(ui, &self.span_tree);
             }
         });
     }

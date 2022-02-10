@@ -8,26 +8,26 @@ const ERROR_COLOR: egui::Color32 = Color32::RED;
 #[derive(Default)]
 pub struct SpanTree {
     callsites: HashMap<rr_data::CallsiteId, rr_data::Callsite>,
-    nodes: HashMap<SpanId, SpanNode>,
-    roots: HashSet<SpanId>,
+    pub nodes: HashMap<SpanId, SpanNode>,
+    pub roots: HashSet<SpanId>,
     orphan_events: Vec<(Time, rr_data::DataEvent)>,
 }
 
 /// A span is created, and then is opened over many non-overlapping intervals.
 #[derive(Debug)]
-struct SpanNode {
-    span: rr_data::Span,
-    follows: Option<SpanId>,
-    lifetime: TimeInterval,
-    intervals: Vec<TimeInterval>,
-    children: HashSet<SpanId>,
-    events: Vec<(Time, rr_data::DataEvent)>,
+pub struct SpanNode {
+    pub span: rr_data::Span,
+    pub follows: Option<SpanId>,
+    pub lifetime: TimeInterval,
+    pub intervals: Vec<TimeInterval>,
+    pub children: HashSet<SpanId>,
+    pub events: Vec<(Time, rr_data::DataEvent)>,
 }
 
 #[derive(Debug, Default)]
-struct TimeInterval {
-    entered: Option<Time>,
-    exited: Option<Time>,
+pub struct TimeInterval {
+    pub min: Option<Time>,
+    pub max: Option<Time>,
 }
 
 impl std::fmt::Display for TimeInterval {
@@ -42,8 +42,8 @@ impl std::fmt::Display for TimeInterval {
         write!(
             f,
             "[{} - {}]",
-            format_optional_time(self.entered),
-            format_optional_time(self.exited)
+            format_optional_time(self.min),
+            format_optional_time(self.max)
         )
     }
 }
@@ -62,8 +62,8 @@ impl SpanTree {
                         span: span.clone(),
                         follows: None,
                         lifetime: TimeInterval {
-                            entered: Some(*log_time),
-                            exited: None,
+                            min: Some(*log_time),
+                            max: None,
                         },
                         children: Default::default(),
                         intervals: Default::default(),
@@ -88,8 +88,8 @@ impl SpanTree {
             rr_data::MessageEnum::EnterSpan(span_id) => {
                 if let Some(node) = self.nodes.get_mut(span_id) {
                     node.intervals.push(TimeInterval {
-                        entered: Some(*log_time),
-                        exited: None,
+                        min: Some(*log_time),
+                        max: None,
                     });
                 } else {
                     tracing::warn!("Opened unknown span");
@@ -98,20 +98,20 @@ impl SpanTree {
             rr_data::MessageEnum::ExitSpan(span_id) => {
                 if let Some(node) = self.nodes.get_mut(span_id) {
                     if let Some(interval) = node.intervals.last_mut() {
-                        if interval.exited.is_none() {
-                            interval.exited = Some(*log_time);
+                        if interval.max.is_none() {
+                            interval.max = Some(*log_time);
                         } else {
                             tracing::warn!("Exited span that was never opened");
                             node.intervals.push(TimeInterval {
-                                entered: None,
-                                exited: Some(*log_time),
+                                min: None,
+                                max: Some(*log_time),
                             });
                         }
                     } else {
                         tracing::warn!("Exited span that was never opened");
                         node.intervals.push(TimeInterval {
-                            entered: None,
-                            exited: Some(*log_time),
+                            min: None,
+                            max: Some(*log_time),
                         });
                     }
                 } else {
@@ -120,10 +120,10 @@ impl SpanTree {
             }
             rr_data::MessageEnum::DestroySpan(span_id) => {
                 if let Some(node) = self.nodes.get_mut(span_id) {
-                    if node.lifetime.exited.is_some() {
+                    if node.lifetime.max.is_some() {
                         tracing::warn!("Destroying a span twice");
                     }
-                    node.lifetime.exited = Some(*log_time);
+                    node.lifetime.max = Some(*log_time);
                 } else {
                     tracing::warn!("Destroying unknown span");
                 }
@@ -181,6 +181,50 @@ impl SpanTree {
         use itertools::Itertools as _;
         ancestry.iter().rev().join(" ➡ ")
     }
+
+    /// The inclusive time range of everything, or `None` if we have recieved no times.
+    pub fn ns_range(&self) -> Option<(i64, i64)> {
+        let mut min = i64::MAX;
+        let mut max = i64::MIN;
+
+        let mut observe_time = |t: &Time| {
+            let ns = t.nanos_since_epoch();
+            min = min.min(ns);
+            max = max.max(ns);
+        };
+
+        for node in self.nodes.values() {
+            if let Some(t) = &node.lifetime.min {
+                observe_time(t);
+            }
+            if let Some(t) = &node.lifetime.max {
+                observe_time(t);
+            }
+
+            for interval in &node.intervals {
+                if let Some(t) = &interval.min {
+                    observe_time(t);
+                }
+                if let Some(t) = &interval.max {
+                    observe_time(t);
+                }
+            }
+
+            for (t, _) in &node.events {
+                observe_time(t);
+            }
+        }
+
+        for (t, _) in &self.orphan_events {
+            observe_time(t);
+        }
+
+        if min <= max {
+            Some((min, max))
+        } else {
+            None
+        }
+    }
 }
 
 /// ## UI memebers:
@@ -220,7 +264,7 @@ impl SpanTree {
     }
 
     fn tree_node_ui_impl(&self, ui: &mut egui::Ui, depth: usize, node: &SpanNode) {
-        self.ui_span_summary(ui, node);
+        self.span_summary_ui(ui, node);
         for child in &node.children {
             self.tree_node_ui(ui, depth + 1, child);
         }
@@ -289,13 +333,13 @@ impl SpanTree {
 
     pub fn span_summary_ui_by_id(&self, ui: &mut egui::Ui, span_id: &rr_data::SpanId) {
         if let Some(node) = self.nodes.get(span_id) {
-            self.ui_span_summary(ui, node);
+            self.span_summary_ui(ui, node);
         } else {
             ui.colored_label(ERROR_COLOR, "Missing span");
         }
     }
 
-    fn ui_span_summary(&self, ui: &mut egui::Ui, node: &SpanNode) {
+    pub fn span_summary_ui(&self, ui: &mut egui::Ui, node: &SpanNode) {
         let SpanNode {
             span,
             follows,

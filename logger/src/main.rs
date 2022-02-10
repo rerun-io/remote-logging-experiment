@@ -29,31 +29,31 @@ async fn main() {
     std::thread::sleep(std::time::Duration::from_millis(100)); // give it time to start
 
     {
-        let main_span = tracing::info_span!("main");
-        let _guard = main_span.entered();
+        let _guard = tracing::info_span!("main").entered();
 
-        // is there a simpler way to do this?
-        let child_span = tracing::info_span!(parent: None, "task0");
-        child_span.follows_from(tracing::Span::current());
-        let handle_0 = tokio::task::spawn_blocking(move || {
-            child_span.in_scope(|| {
-                my_function();
-            });
-        });
+        let mut handles = vec![];
+        {
+            let _guard = tracing::info_span!("spawn").entered();
 
-        let child_span = tracing::info_span!(parent: None, "task1");
-        child_span.follows_from(tracing::Span::current());
-        let handle_1 = tokio::task::spawn_blocking(move || {
-            child_span.in_scope(|| {
-                my_function();
-            });
-        });
+            for task_nr in 0..2 {
+                let child_span = tracing::info_span!("task", task_nr).or_current();
+                let handle = tokio::task::spawn_blocking(move || {
+                    child_span.in_scope(|| {
+                        my_function();
+                    });
+                });
+                handles.push(handle);
+            }
+        }
 
-        handle_0.await.unwrap();
-        handle_1.await.unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+
+        for handle in handles {
+            handle.await.unwrap();
+        }
     }
 
-    std::thread::sleep(std::time::Duration::from_millis(100)); // give time to send it all away
+    std::thread::sleep(std::time::Duration::from_millis(100)); // give time to send it
 }
 
 #[tracing::instrument]
@@ -62,10 +62,10 @@ pub fn my_function() {
     span.in_scope(|| {
         tracing::info!("Hello from my_function");
         tracing::event!(tracing::Level::INFO, value = 42_i32, "This is an event");
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(std::time::Duration::from_millis(10));
     });
     span.in_scope(|| {
         tracing::info!("Second time in same span");
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(std::time::Duration::from_millis(10));
     });
 }
