@@ -314,10 +314,12 @@ version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "670ad68c9088c2a963aaa298cb369688cf3f9465ce5e2d4ca10e6e0098a1ce73"
 dependencies = [
+ "js-sys",
  "libc",
  "num-integer",
  "num-traits",
  "time",
+ "wasm-bindgen",
  "winapi",
 ]
 
@@ -655,7 +657,7 @@ checksum = "6907e25393cdcc1f4f3f513d9aac1e840eb1cc341a0fccb01171f7d14d10b946"
 [[package]]
 name = "eframe"
 version = "0.16.0"
-source = "git+https://github.com/emilk/egui?branch=master#b2323bd13ef5177ad551cff0ac624e02029e0e5e"
+source = "git+https://github.com/emilk/egui?branch=master#3f8ba3a54290e6410988a1bcd1066af8479febb3"
 dependencies = [
  "egui",
  "egui-winit",
@@ -667,7 +669,7 @@ dependencies = [
 [[package]]
 name = "egui"
 version = "0.16.1"
-source = "git+https://github.com/emilk/egui?branch=master#b2323bd13ef5177ad551cff0ac624e02029e0e5e"
+source = "git+https://github.com/emilk/egui?branch=master#3f8ba3a54290e6410988a1bcd1066af8479febb3"
 dependencies = [
  "ahash 0.7.6",
  "epaint",
@@ -680,7 +682,7 @@ dependencies = [
 [[package]]
 name = "egui-winit"
 version = "0.16.0"
-source = "git+https://github.com/emilk/egui?branch=master#b2323bd13ef5177ad551cff0ac624e02029e0e5e"
+source = "git+https://github.com/emilk/egui?branch=master#3f8ba3a54290e6410988a1bcd1066af8479febb3"
 dependencies = [
  "copypasta",
  "dark-light",
@@ -696,7 +698,7 @@ dependencies = [
 [[package]]
 name = "egui_glow"
 version = "0.16.0"
-source = "git+https://github.com/emilk/egui?branch=master#b2323bd13ef5177ad551cff0ac624e02029e0e5e"
+source = "git+https://github.com/emilk/egui?branch=master#3f8ba3a54290e6410988a1bcd1066af8479febb3"
 dependencies = [
  "bytemuck",
  "egui",
@@ -713,16 +715,14 @@ dependencies = [
 [[package]]
 name = "egui_web"
 version = "0.16.0"
-source = "git+https://github.com/emilk/egui?branch=master#b2323bd13ef5177ad551cff0ac624e02029e0e5e"
+source = "git+https://github.com/emilk/egui?branch=master#3f8ba3a54290e6410988a1bcd1066af8479febb3"
 dependencies = [
  "bytemuck",
- "console_error_panic_hook",
  "egui",
  "egui_glow",
  "epi",
  "js-sys",
  "tracing",
- "tracing-wasm",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -737,7 +737,7 @@ checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 [[package]]
 name = "emath"
 version = "0.16.0"
-source = "git+https://github.com/emilk/egui?branch=master#b2323bd13ef5177ad551cff0ac624e02029e0e5e"
+source = "git+https://github.com/emilk/egui?branch=master#3f8ba3a54290e6410988a1bcd1066af8479febb3"
 dependencies = [
  "bytemuck",
  "serde",
@@ -767,7 +767,7 @@ dependencies = [
 [[package]]
 name = "epaint"
 version = "0.16.0"
-source = "git+https://github.com/emilk/egui?branch=master#b2323bd13ef5177ad551cff0ac624e02029e0e5e"
+source = "git+https://github.com/emilk/egui?branch=master#3f8ba3a54290e6410988a1bcd1066af8479febb3"
 dependencies = [
  "ab_glyph",
  "ahash 0.7.6",
@@ -781,7 +781,7 @@ dependencies = [
 [[package]]
 name = "epi"
 version = "0.16.0"
-source = "git+https://github.com/emilk/egui?branch=master#b2323bd13ef5177ad551cff0ac624e02029e0e5e"
+source = "git+https://github.com/emilk/egui?branch=master#3f8ba3a54290e6410988a1bcd1066af8479febb3"
 dependencies = [
  "directories-next",
  "egui",
@@ -1415,9 +1415,9 @@ dependencies = [
 
 [[package]]
 name = "ntapi"
-version = "0.3.6"
+version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f6bb902e437b6d86e03cce10a7e2af662292c5dfef23b65899ea3ac9354ad44"
+checksum = "c28774a7fd2fbb4f0babd8237ce554b73af68021b5f695a3cebd6c59bac0980f"
 dependencies = [
  "winapi",
 ]
@@ -1685,6 +1685,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7342d5883fbccae1cc37a2353b09c87c9b0f3afd73f5fb9bba687a1f733b029"
 dependencies = [
  "unicode-xid",
+]
+
+[[package]]
+name = "pub_sub_server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "futures-channel",
+ "futures-util",
+ "rr_data",
+ "tokio",
+ "tokio-tungstenite",
+ "tracing",
+ "tracing-subscriber",
+ "tungstenite",
 ]
 
 [[package]]
@@ -2273,6 +2288,7 @@ name = "viewer"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "console_error_panic_hook",
  "eframe",
  "ewebsock",
  "itertools",
@@ -2282,6 +2298,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "tracing-wasm",
 ]
 
 [[package]]
@@ -2586,20 +2603,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d107f8c6e916235c4c01cabb3e8acf7bea8ef6a63ca2e7fa0527c049badfc48c"
 dependencies = [
  "winapi",
-]
-
-[[package]]
-name = "ws_server"
-version = "0.1.0"
-dependencies = [
- "futures-channel",
- "futures-util",
- "rr_data",
- "tokio",
- "tokio-tungstenite",
- "tracing",
- "tracing-subscriber",
- "tungstenite",
 ]
 
 [[package]]

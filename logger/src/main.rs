@@ -12,7 +12,7 @@ fn setup_logging() {
         created: rr_data::Time::now(),
         name: "logger".into(),
     };
-    let rr_logger = logger::RrLogger::to_ws_server(url.into(), topic_meta);
+    let rr_logger = logger::RrLogger::to_pub_sub_server(url.into(), topic_meta);
     let rr_logger = rr_logger.with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
         metadata.level() <= &tracing::Level::INFO
     }));
@@ -62,10 +62,11 @@ pub fn my_function() {
     span.in_scope(|| {
         tracing::info!("Hello from my_function");
         tracing::event!(tracing::Level::INFO, value = 42_i32, "This is an event");
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        std::thread::sleep(std::time::Duration::from_millis(5));
     });
+    std::thread::sleep(std::time::Duration::from_millis(5));
     span.in_scope(|| {
         tracing::info!("Second time in same span");
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        std::thread::sleep(std::time::Duration::from_millis(5));
     });
 }

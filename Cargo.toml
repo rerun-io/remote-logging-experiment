@@ -5,7 +5,7 @@ members = [
     "logger",
     "rr_data",
     "viewer",
-    "ws_server",
+    "pub_sub_server",
 ]
 
 [patch.crates-io]

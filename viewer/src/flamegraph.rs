@@ -414,10 +414,10 @@ fn paint_span(
         });
     }
 
-    return PaintResult {
+    PaintResult {
         rect,
         color: Some(rect_color),
-    };
+    }
 }
 
 fn paint_rect(options: &FlameGraph, info: &Info, min_width: f32, rect: Rect, rect_color: Rgba) {

@@ -1,5 +1,5 @@
 [package]
-name = "ws_server"
+name = "pub_sub_server"
 version = "0.1.0"
 authors = ["Emil Ernerfeldt <emil.ernerfeldt@gmail.com>"]
 edition = "2021"
@@ -15,6 +15,7 @@ include = [
 [dependencies]
 rr_data = { path = "../rr_data" }
 
+anyhow = "1.0"
 futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 tokio = { version = "1.0.0", default-features = false, features = [

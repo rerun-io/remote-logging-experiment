@@ -8,7 +8,7 @@ struct RrConnection {
 }
 
 impl RrConnection {
-    fn to_ws_server(url: String) -> Self {
+    fn to_pub_sub_server(url: String) -> Self {
         let (send, _recv) = ewebsock::connect(url).unwrap();
         Self { send, _recv }
     }
@@ -28,9 +28,9 @@ pub struct RrLogger {
 // static_assertions::assert_impl_all!(RrLogger: Send, Sync);
 
 impl RrLogger {
-    pub fn to_ws_server(url: String, topic_meta: rr_data::TopicMeta) -> Self {
+    pub fn to_pub_sub_server(url: String, topic_meta: rr_data::TopicMeta) -> Self {
         let topic_id = rr_data::TopicId::random();
-        let mut connection = RrConnection::to_ws_server(url);
+        let mut connection = RrConnection::to_pub_sub_server(url);
         connection.send(PubSubMsg::NewTopic(topic_id, topic_meta));
         Self {
             topic_id,

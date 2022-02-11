@@ -3,7 +3,26 @@ use std::{collections::HashSet, sync::Arc};
 use std::{net::SocketAddr, ops::ControlFlow, time::Duration};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::{accept_async, tungstenite::Error, WebSocketStream};
-use tungstenite::{Message, Result};
+
+/// Start a pub-sub server listening on the given port
+pub async fn run(bind_addr: &str) -> anyhow::Result<()> {
+    use anyhow::Context as _;
+
+    let listener = TcpListener::bind(bind_addr).await.context("Can't listen")?;
+    tracing::info!("Listening on: {}", bind_addr);
+
+    let broadcaster = Arc::new(Broadcaster::new());
+
+    while let Ok((stream, _)) = listener.accept().await {
+        let peer = stream
+            .peer_addr()
+            .context("connected streams should have a peer address")?;
+        let broadcaster = broadcaster.clone();
+        tokio::spawn(accept_connection(broadcaster, peer, stream));
+    }
+
+    Ok(())
+}
 
 pub struct Broadcaster {
     tx: tokio::sync::broadcast::Sender<Arc<rr_data::PubSubMsg>>,
@@ -33,14 +52,15 @@ async fn accept_connection(broadcaster: Arc<Broadcaster>, peer: SocketAddr, stre
     }
 }
 
-async fn handle_connection(broadcaster: &Broadcaster, stream: TcpStream) -> Result<()> {
+async fn handle_connection(
+    broadcaster: &Broadcaster,
+    stream: TcpStream,
+) -> tungstenite::Result<()> {
     let ws_stream = accept_async(stream).await.expect("Failed to accept");
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
     let mut interval = tokio::time::interval(Duration::from_millis(1000));
 
     let mut pub_sub_rx = broadcaster.tx.subscribe();
-
-    // Echo incoming WebSocket messages and send a message periodically every second.
 
     let mut subscribed_topics = HashSet::default();
 
@@ -91,11 +111,11 @@ async fn handle_connection(broadcaster: &Broadcaster, stream: TcpStream) -> Resu
 async fn on_msg(
     subscribed_topics: &mut HashSet<rr_data::TopicId>,
     broadcaster: &Broadcaster,
-    ws_sender: &mut SplitSink<WebSocketStream<TcpStream>, Message>,
-    msg: Message,
+    ws_sender: &mut SplitSink<WebSocketStream<TcpStream>, tungstenite::Message>,
+    msg: tungstenite::Message,
 ) -> ControlFlow<()> {
-    tracing::info!("Message received");
-    if let Message::Binary(binary) = &msg {
+    tracing::debug!("Message received");
+    if let tungstenite::Message::Binary(binary) = &msg {
         if let Ok(pub_sub_msg) = rr_data::PubSubMsg::decode(binary) {
             if let rr_data::PubSubMsg::SubscribeTo(topic_id) = pub_sub_msg {
                 subscribed_topics.insert(topic_id);
@@ -116,24 +136,5 @@ async fn on_msg(
         ControlFlow::Break(())
     } else {
         ControlFlow::Continue(())
-    }
-}
-
-#[tokio::main]
-async fn main() {
-    tracing_subscriber::fmt::init();
-
-    let addr = "127.0.0.1:9002";
-    let listener = TcpListener::bind(&addr).await.expect("Can't listen");
-    tracing::info!("Listening on: {}", addr);
-
-    let broadcaster = Arc::new(Broadcaster::new());
-
-    while let Ok((stream, _)) = listener.accept().await {
-        let peer = stream
-            .peer_addr()
-            .expect("connected streams should have a peer address");
-        let broadcaster = broadcaster.clone();
-        tokio::spawn(accept_connection(broadcaster, peer, stream));
     }
 }
