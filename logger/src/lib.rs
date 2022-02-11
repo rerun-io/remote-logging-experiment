@@ -112,6 +112,9 @@ impl<S: tracing::Subscriber> tracing_subscriber::layer::Layer<S> for RrLogger {
         id: &tracing::Id,
         ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
+        let mut kv_collector = KvCollector::default();
+        attrs.values().record(&mut kv_collector);
+
         let parent_span_id = attrs
             .parent()
             .map(to_span_id)
@@ -121,6 +124,7 @@ impl<S: tracing::Subscriber> tracing_subscriber::layer::Layer<S> for RrLogger {
             id: to_span_id(id),
             callsite_id: to_callsite_id(&attrs.metadata().callsite()),
             parent_span_id,
+            fields: kv_collector.values,
         };
         self.send(rr_data::Message::now(rr_data::MessageEnum::NewSpan(
             rr_span,

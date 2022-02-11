@@ -1,7 +1,7 @@
 use crate::span_tree::{SpanNode, SpanTree};
 use eframe::egui;
 use egui::*;
-use rr_data::{CallsiteId, SpanId};
+use rr_data::CallsiteId;
 
 type NanoSecond = i64;
 
@@ -42,11 +42,10 @@ impl Filter {
 
 // ----------------------------------------------------------------------------
 
-#[derive(Clone, Copy, Eq, PartialEq)]
-enum PaintResult {
-    Culled,
-    Hovered,
-    Normal,
+#[derive(Clone, Copy, PartialEq)]
+struct PaintResult {
+    rect: Rect,
+    color: Option<Rgba>,
 }
 
 // ----------------------------------------------------------------------------
@@ -122,8 +121,8 @@ impl Default for FlameGraph {
             min_width: 1.0,
 
             rect_height: 16.0,
-            spacing: 4.0,
-            rounding: 4.0,
+            spacing: 2.0,
+            rounding: 3.0,
 
             filter: Default::default(),
 
@@ -262,8 +261,10 @@ fn ui_canvas(options: &mut FlameGraph, info: &Info, span_tree: &SpanTree) -> f32
     let mut cursor_y = info.canvas.top();
     cursor_y += info.text_height; // Leave room for time labels
 
-    for root in &span_tree.roots {
-        paint_node_and_children(options, info, span_tree, root, &mut cursor_y);
+    for span_id in &span_tree.roots {
+        if let Some(node) = span_tree.nodes.get(span_id) {
+            paint_node_and_children(options, info, span_tree, node, &mut cursor_y);
+        }
 
         cursor_y += 16.0; // spacing between roots
     }
@@ -275,21 +276,47 @@ fn paint_node_and_children(
     options: &mut FlameGraph,
     info: &Info,
     span_tree: &SpanTree,
-    span_id: &SpanId,
+    node: &SpanNode,
     cursor_y: &mut f32,
-) {
-    let node = if let Some(node) = span_tree.nodes.get(span_id) {
-        node
-    } else {
-        return;
-    };
-
-    paint_span(options, info, span_tree, node, *cursor_y);
+) -> PaintResult {
+    let result = paint_span(options, info, span_tree, node, *cursor_y);
     *cursor_y += options.rect_height + options.spacing;
 
-    for child in &node.children {
-        paint_node_and_children(options, info, span_tree, child, cursor_y);
+    let parent_bottom_y = *cursor_y;
+
+    // Some children are "spawned" children (in separate async tasks).
+    // There can be only one "direct" child.
+    // We paint the direct child close (directly under),
+    // and the indirect children with arrows down to them.
+    let direct_child = span_tree.direct_child_of(node);
+
+    if let Some(direct_child) = &direct_child {
+        if let Some(child) = span_tree.nodes.get(direct_child) {
+            paint_node_and_children(options, info, span_tree, child, cursor_y);
+        }
     }
+
+    for child in &node.children {
+        if Some(*child) != direct_child {
+            if let Some(child) = span_tree.nodes.get(child) {
+                *cursor_y += 8.0; // spacing between spawned children
+
+                let child_top_y = *cursor_y;
+                let result = paint_node_and_children(options, info, span_tree, child, cursor_y);
+
+                if let Some(child_color) = result.color {
+                    let x = result.rect.left();
+                    let path = [pos2(x, parent_bottom_y), pos2(x, child_top_y)];
+                    let stroke = Stroke::new(1.0, child_color * 0.5);
+                    info.painter
+                        .add(Shape::Vec(Shape::dashed_line(&path, stroke, 5.0, 1.0)));
+                    // TODO: paint the line UNDER everything else (needs egui improvement).
+                }
+            }
+        }
+    }
+
+    result
 }
 
 fn paint_span(
@@ -303,14 +330,14 @@ fn paint_span(
 
     let min_x = info.point_from_ns(options, min_ns);
     let max_x = info.point_from_ns(options, max_ns);
-    if info.canvas.max.x < min_x || max_x < info.canvas.min.x || max_x - min_x < options.cull_width
-    {
-        return PaintResult::Culled;
-    }
 
     let bottom_y = top_y + options.rect_height;
-
     let rect = Rect::from_min_max(pos2(min_x, top_y), pos2(max_x, bottom_y));
+
+    if info.canvas.max.x < min_x || max_x < info.canvas.min.x || max_x - min_x < options.cull_width
+    {
+        return PaintResult { rect, color: None };
+    }
 
     let is_hovered = if let Some(mouse_pos) = info.response.hover_pos() {
         rect.contains(mouse_pos)
@@ -334,8 +361,8 @@ fn paint_span(
     let mut min_width = options.min_width;
 
     if !options.filter.is_empty() {
-        let span_name = span_tree.span_name(&node.span.id);
-        if options.filter.include(&span_name) {
+        let span_description = span_tree.span_description(&node.span.id);
+        if options.filter.include(&span_description) {
             // keep full opacity
             min_width *= 2.0; // make it more visible even when thin
         } else {
@@ -364,8 +391,8 @@ fn paint_span(
     if wide_enough_for_text {
         let painter = info.painter.sub_region(rect.intersect(info.canvas));
 
-        let span_name = span_tree.span_name(&node.span.id);
-        let text = span_name;
+        let span_description = span_tree.span_description(&node.span.id);
+        let text = span_description;
         let pos = pos2(
             min_x + 4.0,
             top_y + 0.5 * (options.rect_height - info.text_height),
@@ -387,11 +414,10 @@ fn paint_span(
         });
     }
 
-    if is_hovered {
-        PaintResult::Hovered
-    } else {
-        PaintResult::Normal
-    }
+    return PaintResult {
+        rect,
+        color: Some(rect_color),
+    };
 }
 
 fn paint_rect(options: &FlameGraph, info: &Info, min_width: f32, rect: Rect, rect_color: Rgba) {

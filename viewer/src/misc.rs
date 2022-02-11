@@ -52,6 +52,7 @@ pub fn format_time(time: &rr_data::Time) -> String {
             nanos_since_epoch / 1_000_000_000,
             (nanos_since_epoch % 1_000_000_000) as _,
         );
+
         if datetime.date() == chrono::offset::Utc::today() {
             datetime.format("%H:%M:%S%.3fZ").to_string()
         } else {

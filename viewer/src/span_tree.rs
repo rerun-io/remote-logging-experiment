@@ -19,15 +19,57 @@ pub struct SpanNode {
     pub span: rr_data::Span,
     pub follows: Option<SpanId>,
     pub lifetime: TimeInterval,
+    /// Periods when the span is "active" (entered/running).
     pub intervals: Vec<TimeInterval>,
     pub children: HashSet<SpanId>,
     pub events: Vec<(Time, rr_data::DataEvent)>,
+}
+
+impl SpanNode {
+    pub fn is_active_at(&self, time: Time) -> bool {
+        self.intervals
+            .iter()
+            .any(|interval| interval.is_active_at(time))
+    }
+
+    /// True if the parent is active whenever the child is.
+    pub fn is_direct_child_of(&self, parent: &SpanNode) -> bool {
+        for interval in &self.intervals {
+            if let Some(min) = interval.min {
+                if !parent.is_active_at(min) {
+                    return false;
+                }
+            }
+            if let Some(max) = interval.max {
+                if !parent.is_active_at(max) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
 }
 
 #[derive(Debug, Default)]
 pub struct TimeInterval {
     pub min: Option<Time>,
     pub max: Option<Time>,
+}
+
+impl TimeInterval {
+    pub fn is_active_at(&self, time: Time) -> bool {
+        if let Some(min) = self.min {
+            if time < min {
+                return false;
+            }
+        }
+        if let Some(max) = self.max {
+            if max < time {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 impl std::fmt::Display for TimeInterval {
@@ -164,6 +206,33 @@ impl SpanTree {
         }
     }
 
+    /// More than just a name
+    pub fn span_description(&self, span_id: &SpanId) -> String {
+        if let Some(node) = self.nodes.get(span_id) {
+            use itertools::Itertools as _;
+            let fields = node
+                .span
+                .fields
+                .iter()
+                .map(|(key, value)| format!("{}={}", key, value))
+                .join(", ");
+
+            let name = if let Some(callsite) = self.callsites.get(&node.span.callsite_id) {
+                callsite.name.to_string()
+            } else {
+                span_id.to_string()
+            };
+
+            if fields.is_empty() {
+                name
+            } else {
+                format!("{} {}", name, fields)
+            }
+        } else {
+            span_id.to_string()
+        }
+    }
+
     pub fn span_ancestry(&self, span_id: &SpanId) -> String {
         let mut ancestry = vec![self.span_name(span_id)];
 
@@ -224,6 +293,28 @@ impl SpanTree {
         } else {
             None
         }
+    }
+
+    /// Find the "direct" child of the given node, if any.
+    ///
+    /// Some children are "spawned" children (in separate async tasks).
+    /// There can be only one "direct" child.
+    pub fn direct_child_of(&self, node: &SpanNode) -> Option<SpanId> {
+        let mut direct_child = None;
+
+        for child_id in &node.children {
+            if let Some(child) = self.nodes.get(child_id) {
+                if child.is_direct_child_of(node) {
+                    if direct_child.is_some() {
+                        return None; // there can be only one
+                    } else {
+                        direct_child = Some(*child_id);
+                    }
+                }
+            }
+        }
+
+        direct_child
     }
 }
 
@@ -308,27 +399,20 @@ impl SpanTree {
             fields,
         } = data_event;
 
-        let response = ui.horizontal(|ui| {
-            for (key, value) in fields {
-                ui.label(egui::RichText::new(format!("{}: ", key)).weak());
-                ui.label(value.to_string());
+        let response = ui_fields(ui, fields);
+
+        response.on_hover_ui(|ui| {
+            ui.heading("Callsite:");
+            self.callsite_ui_by_id(ui, callsite_id);
+
+            ui.separator();
+            ui.heading("Parent span:");
+            if let Some(parent_span_id) = parent_span_id {
+                self.span_summary_ui_by_id(ui, parent_span_id);
+            } else {
+                ui.label("<None>");
             }
         });
-
-        response
-            .response
-            .on_hover_ui(|ui| {
-                ui.heading("Callsite:");
-                self.callsite_ui_by_id(ui, callsite_id);
-            })
-            .on_hover_ui(|ui| {
-                ui.heading("Parent span:");
-                if let Some(parent_span_id) = parent_span_id {
-                    self.span_summary_ui_by_id(ui, parent_span_id);
-                } else {
-                    ui.label("<None>");
-                }
-            });
     }
 
     pub fn span_summary_ui_by_id(&self, ui: &mut egui::Ui, span_id: &rr_data::SpanId) {
@@ -353,6 +437,7 @@ impl SpanTree {
             id: _,
             parent_span_id,
             callsite_id,
+            fields,
         } = span;
 
         egui::Grid::new("span_node")
@@ -376,6 +461,10 @@ impl SpanTree {
                     ui.colored_label(ERROR_COLOR, "Missing callsite");
                     ui.end_row();
                 }
+
+                ui.label("Fields:");
+                ui_fields(ui, fields);
+                ui.end_row();
 
                 use itertools::Itertools as _;
 
@@ -417,4 +506,14 @@ impl SpanTree {
                 ui.end_row();
             });
     }
+}
+
+fn ui_fields(ui: &mut egui::Ui, fields: &rr_data::FieldSet) -> egui::Response {
+    ui.horizontal(|ui| {
+        for (key, value) in fields {
+            ui.label(egui::RichText::new(format!("{}: ", key)).weak());
+            ui.label(value.to_string());
+        }
+    })
+    .response
 }

@@ -44,7 +44,9 @@ pub struct TopicMeta {
 // ----------------------------------------------------------------------------
 
 /// A date-time represented as nanoseconds since unix epoch
-#[derive(Copy, Clone, Debug, PartialEq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
+)]
 pub struct Time(i64);
 
 impl Time {
@@ -170,6 +172,7 @@ pub struct Span {
     /// `None` if this is a new root.
     pub parent_span_id: Option<SpanId>,
     pub callsite_id: CallsiteId,
+    pub fields: FieldSet,
 }
 
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
