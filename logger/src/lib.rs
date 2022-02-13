@@ -261,3 +261,28 @@ fn to_callsite_id(id: &tracing::callsite::Identifier) -> rr_data::CallsiteId {
 fn to_span_id(id: &tracing::Id) -> rr_data::SpanId {
     rr_data::SpanId(hash(id))
 }
+
+/// `let url = format!("ws://127.0.0.1:{}", rr_data::DEFAULT_PUB_SUB_PORT);`
+pub fn setup_logging(pub_sub_url: &str) {
+    use tracing_subscriber::prelude::*;
+
+    let stdout_logger = tracing_subscriber::fmt::layer();
+    let stdout_logger =
+        stdout_logger.with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
+            metadata.level() <= &tracing::Level::DEBUG
+        }));
+
+    let topic_meta = rr_data::TopicMeta {
+        created: rr_data::Time::now(),
+        name: "logger".into(),
+    };
+    let rr_logger = RrLogger::to_pub_sub_server(pub_sub_url.into(), topic_meta);
+    let rr_logger = rr_logger.with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
+        metadata.level() <= &tracing::Level::INFO
+    }));
+
+    tracing_subscriber::registry()
+        .with(stdout_logger)
+        .with(rr_logger)
+        .init();
+}

@@ -5,11 +5,15 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::{accept_async, tungstenite::Error, WebSocketStream};
 
 /// Start a pub-sub server listening on the given port
-pub async fn run(bind_addr: &str) -> anyhow::Result<()> {
+pub async fn run(port: u16) -> anyhow::Result<()> {
+    let bind_addr = format!("127.0.0.1:{}", port);
+
     use anyhow::Context as _;
 
-    let listener = TcpListener::bind(bind_addr).await.context("Can't listen")?;
-    tracing::info!("Listening on: {}", bind_addr);
+    let listener = TcpListener::bind(&bind_addr)
+        .await
+        .context("Can't listen")?;
+    tracing::info!("Pub-sub listening on: {}", bind_addr);
 
     let broadcaster = Arc::new(Broadcaster::new());
 
@@ -96,6 +100,7 @@ async fn handle_connection(
                     }
                 };
                 if should_send {
+                    tracing::info!("Passing on message");
                     ws_sender.send(tungstenite::Message::Binary(pub_sub_msg.encode())).await?;
                 }
             }
@@ -114,7 +119,7 @@ async fn on_msg(
     ws_sender: &mut SplitSink<WebSocketStream<TcpStream>, tungstenite::Message>,
     msg: tungstenite::Message,
 ) -> ControlFlow<()> {
-    tracing::debug!("Message received");
+    tracing::info!("Message received");
     if let tungstenite::Message::Binary(binary) = &msg {
         if let Ok(pub_sub_msg) = rr_data::PubSubMsg::decode(binary) {
             if let rr_data::PubSubMsg::SubscribeTo(topic_id) = pub_sub_msg {

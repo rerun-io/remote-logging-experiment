@@ -1,32 +1,33 @@
-fn setup_logging() {
-    use tracing_subscriber::prelude::*;
-
-    let stdout_logger = tracing_subscriber::fmt::layer();
-    let stdout_logger =
-        stdout_logger.with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
-            metadata.level() <= &tracing::Level::DEBUG
-        }));
-
-    let url = "ws://127.0.0.1:9002";
-    let topic_meta = rr_data::TopicMeta {
-        created: rr_data::Time::now(),
-        name: "logger".into(),
-    };
-    let rr_logger = logger::RrLogger::to_pub_sub_server(url.into(), topic_meta);
-    let rr_logger = rr_logger.with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
-        metadata.level() <= &tracing::Level::INFO
-    }));
-
-    tracing_subscriber::registry()
-        .with(stdout_logger)
-        .with(rr_logger)
-        .init();
-}
-
 #[tokio::main]
 async fn main() {
-    setup_logging();
-    std::thread::sleep(std::time::Duration::from_millis(100)); // give it time to start
+    let pub_sub_port = rr_data::DEFAULT_PUB_SUB_PORT;
+    logger::setup_logging(&format!("ws://127.0.0.1:{}", pub_sub_port));
+    tracing::debug!("Loggin set up");
+
+    #[cfg(feature = "pub_sub_server")]
+    let pub_sub_handle = tokio::spawn(async move {
+        tracing::debug!("Starting pub-sub-server…");
+        pub_sub_server::run(pub_sub_port).await.unwrap();
+    });
+
+    #[cfg(feature = "web_server")]
+    let web_server_handle = {
+        tracing::debug!("Starting web server…");
+        let port = rr_data::DEFAULT_VIEWER_WEB_SERVER_PORT;
+        let web_server_handle = tokio::spawn(async move {
+            web_server::run(port).await.unwrap();
+        });
+        #[cfg(feature = "webbrowser")]
+        {
+            let url = format!("http://127.0.0.1:{}", port);
+            if webbrowser::open(&url).is_ok() {
+                std::thread::sleep(std::time::Duration::from_millis(1000)); // give it time to start
+            }
+        }
+        web_server_handle
+    };
+
+    std::thread::sleep(std::time::Duration::from_millis(100)); // give everything time to start
 
     {
         let _guard = tracing::info_span!("main").entered();
@@ -54,6 +55,11 @@ async fn main() {
     }
 
     std::thread::sleep(std::time::Duration::from_millis(100)); // give time to send it
+
+    #[cfg(feature = "pub_sub_server")]
+    pub_sub_handle.await.unwrap();
+    #[cfg(feature = "web_server")]
+    web_server_handle.await.unwrap();
 }
 
 #[tracing::instrument]

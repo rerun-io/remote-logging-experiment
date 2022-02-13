@@ -18,7 +18,7 @@ impl epi::App for WsClientApp {
         _storage: Option<&dyn epi::Storage>,
     ) {
         // let url = "ws://echo.websocket.lines/.ws";
-        let url = "ws://127.0.0.1:9002";
+        let url = format!("ws://127.0.0.1:{}", rr_data::DEFAULT_PUB_SUB_PORT);
 
         // Make sure we wake up UI thread on event:
         let frame = frame.clone();

@@ -1,3 +1,6 @@
+pub const DEFAULT_PUB_SUB_PORT: u16 = 9003;
+pub const DEFAULT_VIEWER_WEB_SERVER_PORT: u16 = 8788;
+
 /// The top-level message sent to/from a pub-sub server
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum PubSubMsg {
