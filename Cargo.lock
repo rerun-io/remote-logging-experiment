@@ -1781,6 +1781,7 @@ dependencies = [
  "anyhow",
  "futures-channel",
  "futures-util",
+ "parking_lot 0.12.0",
  "rr_data",
  "tokio",
  "tokio-tungstenite",

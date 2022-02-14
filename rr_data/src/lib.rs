@@ -1,17 +1,25 @@
-pub const DEFAULT_PUB_SUB_PORT: u16 = 9003;
-pub const DEFAULT_VIEWER_WEB_SERVER_PORT: u16 = 8788;
+use std::sync::Arc;
+
+pub const DEFAULT_PUB_SUB_PORT: u16 = 9002;
+pub const DEFAULT_VIEWER_WEB_SERVER_PORT: u16 = 8787;
 
 /// The top-level message sent to/from a pub-sub server
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum PubSubMsg {
     /// A new topic has been created.
-    NewTopic(TopicId, TopicMeta),
+    NewTopic(TopicMeta),
 
     /// A new message of a given topic.
-    TopicMsg(TopicId, Vec<u8>),
+    TopicMsg(TopicId, Arc<[u8]>),
 
     /// Please tell me about new messages on this topic.
     SubscribeTo(TopicId),
+
+    /// Please tell me about all the topics
+    ListTopics,
+
+    /// List of all existing topics
+    AllTopics(Vec<TopicMeta>),
 }
 
 impl PubSubMsg {
@@ -40,6 +48,7 @@ impl TopicId {
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct TopicMeta {
+    pub id: TopicId,
     pub created: Time,
     pub name: String,
 }

@@ -29,9 +29,9 @@ pub struct RrLogger {
 
 impl RrLogger {
     pub fn to_pub_sub_server(url: String, topic_meta: rr_data::TopicMeta) -> Self {
-        let topic_id = rr_data::TopicId::random();
         let mut connection = RrConnection::to_pub_sub_server(url);
-        connection.send(PubSubMsg::NewTopic(topic_id, topic_meta));
+        let topic_id = topic_meta.id;
+        connection.send(PubSubMsg::NewTopic(topic_meta));
         Self {
             topic_id,
             connection: Arc::new(Mutex::new(connection)),
@@ -39,7 +39,7 @@ impl RrLogger {
     }
 
     pub fn send(&self, msg: rr_data::Message) {
-        let msg = rr_data::PubSubMsg::TopicMsg(self.topic_id, msg.encode());
+        let msg = rr_data::PubSubMsg::TopicMsg(self.topic_id, msg.encode().into());
         self.connection.lock().send(msg);
     }
 }
@@ -273,6 +273,7 @@ pub fn setup_logging(pub_sub_url: &str) {
         }));
 
     let topic_meta = rr_data::TopicMeta {
+        id: rr_data::TopicId::random(),
         created: rr_data::Time::now(),
         name: "logger".into(),
     };

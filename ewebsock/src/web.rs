@@ -1,9 +1,5 @@
 use crate::{EventHandler, Result, WsEvent, WsMessage};
 
-macro_rules! console_log {
-    ($($t:tt)*) => (web_sys::console::log_1(&format!($($t)*).into()))
-}
-
 fn string_from_js_value(s: wasm_bindgen::JsValue) -> String {
     s.as_string().unwrap_or(format!("{:#?}", s))
 }
@@ -38,7 +34,6 @@ impl WsSender {
 pub fn ws_connect(url: String, on_event: EventHandler) -> Result<WsSender> {
     // Based on https://rustwasm.github.io/wasm-bindgen/examples/websockets.html
 
-    console_log!("spawn_viewer");
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::JsCast as _;
 
@@ -54,13 +49,13 @@ pub fn ws_connect(url: String, on_event: EventHandler) -> Result<WsSender> {
         let onmessage_callback = Closure::wrap(Box::new(move |e: web_sys::MessageEvent| {
             // Handle difference Text/Binary,...
             if let Ok(abuf) = e.data().dyn_into::<js_sys::ArrayBuffer>() {
-                console_log!("message event, received arraybuffer: {:?}", abuf);
+                tracing::debug!("message event, received arraybuffer: {:?}", abuf);
                 let array = js_sys::Uint8Array::new(&abuf);
                 let len = array.byte_length() as usize;
-                console_log!("Arraybuffer received {} bytes: {:?}", len, array.to_vec());
+                tracing::debug!("Arraybuffer received {} bytes: {:?}", len, array.to_vec());
                 on_event(WsEvent::Message(WsMessage::Binary(array.to_vec())));
             } else if let Ok(blob) = e.data().dyn_into::<web_sys::Blob>() {
-                console_log!("message event, received blob: {:?}", blob);
+                tracing::debug!("message event, received blob: {:?}", blob);
                 // better alternative to juggling with FileReader is to use https://crates.io/crates/gloo-file
                 let fr = web_sys::FileReader::new().unwrap();
                 let fr_c = fr.clone();
@@ -69,7 +64,7 @@ pub fn ws_connect(url: String, on_event: EventHandler) -> Result<WsSender> {
                 let onloadend_cb = Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
                     let array = js_sys::Uint8Array::new(&fr_c.result().unwrap());
                     let len = array.byte_length() as usize;
-                    console_log!("Blob received {} bytes: {:?}", len, array.to_vec());
+                    tracing::debug!("Blob received {} bytes: {:?}", len, array.to_vec());
                     on_event(WsEvent::Message(WsMessage::Binary(array.to_vec())));
                 })
                     as Box<dyn FnMut(web_sys::ProgressEvent)>);
@@ -77,12 +72,12 @@ pub fn ws_connect(url: String, on_event: EventHandler) -> Result<WsSender> {
                 fr.read_as_array_buffer(&blob).expect("blob not readable");
                 onloadend_cb.forget();
             } else if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
-                console_log!("message event, received Text: {:?}", txt);
+                tracing::debug!("message event, received Text: {:?}", txt);
                 on_event(WsEvent::Message(WsMessage::Text(string_from_js_string(
                     txt,
                 ))));
             } else {
-                console_log!("message event, received Unknown: {:?}", e.data());
+                tracing::debug!("message event, received Unknown: {:?}", e.data());
                 on_event(WsEvent::Message(WsMessage::Unknown(string_from_js_value(
                     e.data(),
                 ))));
@@ -99,7 +94,11 @@ pub fn ws_connect(url: String, on_event: EventHandler) -> Result<WsSender> {
     {
         let on_event = on_event.clone();
         let onerror_callback = Closure::wrap(Box::new(move |error_event: web_sys::ErrorEvent| {
-            console_log!("error event: {:?}", error_event);
+            tracing::error!(
+                "error event: {}: {:?}",
+                error_event.message(),
+                error_event.error()
+            );
             on_event(WsEvent::Error(error_event.message()));
         }) as Box<dyn FnMut(web_sys::ErrorEvent)>);
         ws.set_onerror(Some(onerror_callback.as_ref().unchecked_ref()));
@@ -108,7 +107,7 @@ pub fn ws_connect(url: String, on_event: EventHandler) -> Result<WsSender> {
 
     {
         let onopen_callback = Closure::wrap(Box::new(move |_| {
-            console_log!("socket opened");
+            tracing::info!("socket opened");
             on_event(WsEvent::Opened);
         }) as Box<dyn FnMut(wasm_bindgen::JsValue)>);
         ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));

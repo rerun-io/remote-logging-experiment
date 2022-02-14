@@ -1,8 +1,43 @@
 use futures_util::{stream::SplitSink, SinkExt, StreamExt};
-use std::{collections::HashSet, sync::Arc};
+use parking_lot::Mutex;
+use rr_data::{PubSubMsg, TopicId, TopicMeta};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 use std::{net::SocketAddr, ops::ControlFlow, time::Duration};
 use tokio::net::{TcpListener, TcpStream};
 use tokio_tungstenite::{accept_async, tungstenite::Error, WebSocketStream};
+
+pub struct Topics {
+    topics: Mutex<HashMap<TopicId, TopicStream>>,
+    tx: tokio::sync::broadcast::Sender<Arc<rr_data::PubSubMsg>>,
+}
+
+impl Default for Topics {
+    fn default() -> Self {
+        let (tx, _rx) = tokio::sync::broadcast::channel(1024);
+        Self {
+            tx,
+            topics: Default::default(),
+        }
+    }
+}
+
+#[derive(Clone)]
+struct TopicStream {
+    topic_meta: TopicMeta,
+    messages: Vec<Arc<[u8]>>,
+}
+
+impl TopicStream {
+    fn new(topic_meta: TopicMeta) -> Self {
+        Self {
+            topic_meta,
+            messages: Default::default(),
+        }
+    }
+}
 
 /// Start a pub-sub server listening on the given port
 pub async fn run(port: u16) -> anyhow::Result<()> {
@@ -15,31 +50,20 @@ pub async fn run(port: u16) -> anyhow::Result<()> {
         .context("Can't listen")?;
     tracing::info!("Pub-sub listening on: {}", bind_addr);
 
-    let broadcaster = Arc::new(Broadcaster::new());
+    let topics = Arc::new(Topics::default());
 
     while let Ok((stream, _)) = listener.accept().await {
         let peer = stream
             .peer_addr()
             .context("connected streams should have a peer address")?;
-        let broadcaster = broadcaster.clone();
-        tokio::spawn(accept_connection(broadcaster, peer, stream));
+        let topics = topics.clone();
+        tokio::spawn(accept_connection(topics, peer, stream));
     }
 
     Ok(())
 }
 
-pub struct Broadcaster {
-    tx: tokio::sync::broadcast::Sender<Arc<rr_data::PubSubMsg>>,
-}
-
-impl Broadcaster {
-    fn new() -> Self {
-        let (tx, _rx) = tokio::sync::broadcast::channel(1024);
-        Self { tx }
-    }
-}
-
-async fn accept_connection(broadcaster: Arc<Broadcaster>, peer: SocketAddr, stream: TcpStream) {
+async fn accept_connection(topics: Arc<Topics>, peer: SocketAddr, stream: TcpStream) {
     let span = tracing::span!(
         tracing::Level::INFO,
         "Connection",
@@ -48,7 +72,7 @@ async fn accept_connection(broadcaster: Arc<Broadcaster>, peer: SocketAddr, stre
     let _enter = span.enter();
     tracing::info!("New WebSocket connection");
 
-    if let Err(e) = handle_connection(&broadcaster, stream).await {
+    if let Err(e) = handle_connection(&topics, stream).await {
         match e {
             Error::ConnectionClosed | Error::Protocol(_) | Error::Utf8 => (),
             err => tracing::error!("Error processing connection: {}", err),
@@ -56,15 +80,12 @@ async fn accept_connection(broadcaster: Arc<Broadcaster>, peer: SocketAddr, stre
     }
 }
 
-async fn handle_connection(
-    broadcaster: &Broadcaster,
-    stream: TcpStream,
-) -> tungstenite::Result<()> {
+async fn handle_connection(topics: &Topics, stream: TcpStream) -> tungstenite::Result<()> {
     let ws_stream = accept_async(stream).await.expect("Failed to accept");
     let (mut ws_sender, mut ws_receiver) = ws_stream.split();
     let mut interval = tokio::time::interval(Duration::from_millis(1000));
 
-    let mut pub_sub_rx = broadcaster.tx.subscribe();
+    let mut broadcast_rx = topics.tx.subscribe();
 
     let mut subscribed_topics = HashSet::default();
 
@@ -73,7 +94,7 @@ async fn handle_connection(
             ws_msg = ws_receiver.next() => {
                 match ws_msg {
                     Some(Ok(msg)) => {
-                        if on_msg(&mut subscribed_topics, broadcaster, &mut ws_sender, msg).await == ControlFlow::Break(()) {
+                        if on_msg(&mut subscribed_topics, topics, &mut ws_sender, msg).await == ControlFlow::Break(()) {
                             break;
                         }
                     }
@@ -86,21 +107,21 @@ async fn handle_connection(
                     }
                 }
             }
-            pub_sub_msg = pub_sub_rx.recv() => {
+            pub_sub_msg = broadcast_rx.recv() => {
                 let pub_sub_msg = pub_sub_msg.unwrap();
-                let should_send = match &*pub_sub_msg {
-                    rr_data::PubSubMsg::NewTopic(_, _) => {
+                let client_wants_msg = match &*pub_sub_msg {
+                    rr_data::PubSubMsg::NewTopic(_) => {
                         true // Inform everyone about all new topics
                     }
                     rr_data::PubSubMsg::TopicMsg(topic_id, _) => {
                         subscribed_topics.contains(topic_id)
                     }
-                    rr_data::PubSubMsg::SubscribeTo(_) => {
-                        false // clients don't care what topics other clients subscribe to.
+                    rr_data::PubSubMsg::SubscribeTo(_) | rr_data::PubSubMsg::ListTopics | rr_data::PubSubMsg::AllTopics(_) => {
+                        unreachable!("Not broadcast")
                     }
                 };
-                if should_send {
-                    tracing::info!("Passing on message");
+                if client_wants_msg {
+                    tracing::debug!("Passing on message");
                     ws_sender.send(tungstenite::Message::Binary(pub_sub_msg.encode())).await?;
                 }
             }
@@ -115,17 +136,67 @@ async fn handle_connection(
 
 async fn on_msg(
     subscribed_topics: &mut HashSet<rr_data::TopicId>,
-    broadcaster: &Broadcaster,
+    topics: &Topics,
     ws_sender: &mut SplitSink<WebSocketStream<TcpStream>, tungstenite::Message>,
     msg: tungstenite::Message,
 ) -> ControlFlow<()> {
-    tracing::info!("Message received");
     if let tungstenite::Message::Binary(binary) = &msg {
         if let Ok(pub_sub_msg) = rr_data::PubSubMsg::decode(binary) {
-            if let rr_data::PubSubMsg::SubscribeTo(topic_id) = pub_sub_msg {
-                subscribed_topics.insert(topic_id);
-            } else {
-                broadcaster.tx.send(pub_sub_msg.into()).unwrap();
+            match &pub_sub_msg {
+                rr_data::PubSubMsg::NewTopic(topic_meta) => {
+                    tracing::debug!("New topic: {:?}", topic_meta);
+                    let previous = topics
+                        .topics
+                        .lock()
+                        .insert(topic_meta.id, TopicStream::new(topic_meta.clone()));
+                    assert!(previous.is_none());
+                    topics.tx.send(pub_sub_msg.into()).unwrap(); // tell everyone about the new topic
+                }
+                rr_data::PubSubMsg::TopicMsg(topic_id, message) => {
+                    if let Some(topic_stream) = topics.topics.lock().get_mut(topic_id) {
+                        topic_stream.messages.push(message.clone());
+                    }
+                    topics.tx.send(pub_sub_msg.into()).unwrap(); // tell everyone about the new message
+                }
+                rr_data::PubSubMsg::SubscribeTo(topic_id) => {
+                    tracing::debug!("Subscribing to {:?}", topic_id);
+                    let topic_stream = topics.topics.lock().get(&topic_id).cloned();
+                    if let Some(topic_stream) = topic_stream {
+                        let messages = &topic_stream.messages;
+
+                        tracing::debug!("Sending a backlog of {} messages", messages.len());
+                        for message in messages {
+                            let pub_sub_msg = PubSubMsg::TopicMsg(*topic_id, message.clone());
+                            if let Err(err) = ws_sender
+                                .send(tungstenite::Message::Binary(pub_sub_msg.encode()))
+                                .await
+                            {
+                                tracing::error!("Error sending: {:?}", err);
+                                return ControlFlow::Break(());
+                            }
+                        }
+                    }
+                    subscribed_topics.insert(*topic_id);
+                }
+                rr_data::PubSubMsg::ListTopics => {
+                    let all_topic_metas = topics
+                        .topics
+                        .lock()
+                        .values()
+                        .map(|ts| ts.topic_meta.clone())
+                        .collect();
+                    let pub_sub_msg = PubSubMsg::AllTopics(all_topic_metas);
+                    if let Err(err) = ws_sender
+                        .send(tungstenite::Message::Binary(pub_sub_msg.encode()))
+                        .await
+                    {
+                        tracing::error!("Error sending: {:?}", err);
+                        return ControlFlow::Break(());
+                    }
+                }
+                rr_data::PubSubMsg::AllTopics(_) => {
+                    tracing::debug!("Client sent AllTopics message. Weird");
+                }
             }
         }
     }

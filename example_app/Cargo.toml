@@ -18,8 +18,9 @@ include = [
 
 [features]
 default = []
+# default = ["pub_sub_server"]
 # default = ["webbrowser", "web_server"]
-# default = ["webbrowser", "pub_sub_server", "web_server"] # TODO: make sure we send stored data, not just latest
+# default = ["pub_sub_server", "webbrowser", "web_server"]
 
 
 [dependencies]
