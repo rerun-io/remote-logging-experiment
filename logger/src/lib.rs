@@ -31,6 +31,7 @@ impl RrLogger {
     pub fn to_pub_sub_server(url: String, topic_meta: rr_data::TopicMeta) -> Self {
         let mut connection = RrConnection::to_pub_sub_server(url);
         let topic_id = topic_meta.id;
+        eprintln!("Sending PubSubMsg::NewTopic");
         connection.send(PubSubMsg::NewTopic(topic_meta));
         Self {
             topic_id,
@@ -269,7 +270,11 @@ pub fn setup_logging(pub_sub_url: &str) {
     let stdout_logger = tracing_subscriber::fmt::layer();
     let stdout_logger =
         stdout_logger.with_filter(tracing_subscriber::filter::filter_fn(|metadata| {
-            metadata.level() <= &tracing::Level::DEBUG
+            if metadata.target().starts_with("tokio") || metadata.target().starts_with("hyper") {
+                metadata.level() <= &tracing::Level::INFO
+            } else {
+                metadata.level() <= &tracing::Level::DEBUG
+            }
         }));
 
     let topic_meta = rr_data::TopicMeta {

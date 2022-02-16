@@ -17,10 +17,10 @@ include = [
 
 
 [features]
-default = []
+# default = []
 # default = ["pub_sub_server"]
 # default = ["webbrowser", "web_server"]
-# default = ["pub_sub_server", "webbrowser", "web_server"]
+default = ["pub_sub_server", "webbrowser", "web_server"]
 
 
 [dependencies]

@@ -1,14 +1,17 @@
 #[tokio::main]
 async fn main() {
     let pub_sub_port = rr_data::DEFAULT_PUB_SUB_PORT;
-    logger::setup_logging(&format!("ws://127.0.0.1:{}", pub_sub_port));
-    tracing::debug!("Loggin set up");
 
     #[cfg(feature = "pub_sub_server")]
-    let pub_sub_handle = tokio::spawn(async move {
-        tracing::debug!("Starting pub-sub-server…");
-        pub_sub_server::run(pub_sub_port).await.unwrap();
-    });
+    let pub_sub_handle = {
+        eprintln!("Starting pub-sub-server…");
+        let server = pub_sub_server::Server::new(pub_sub_port).await.unwrap();
+        tokio::spawn(async move {
+            server.run().await.unwrap();
+        })
+    };
+
+    logger::setup_logging(&format!("ws://127.0.0.1:{}", pub_sub_port)); // This starts sending things to pub-sub server
 
     #[cfg(feature = "web_server")]
     let web_server_handle = {
@@ -53,8 +56,6 @@ async fn main() {
             handle.await.unwrap();
         }
     }
-
-    std::thread::sleep(std::time::Duration::from_millis(100)); // give time to send it
 
     #[cfg(feature = "pub_sub_server")]
     pub_sub_handle.await.unwrap();

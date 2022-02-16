@@ -25,7 +25,7 @@ impl epi::App for WsClientApp {
         let (ws_receiver, on_event) =
             ewebsock::WsReceiver::new_with_callback(move || frame.request_repaint());
 
-        let ws_sender = ewebsock::ws_connect(url.into(), on_event).unwrap();
+        let ws_sender = ewebsock::ws_connect(url, on_event).unwrap();
         self.frontend = Some(Viewer::new(ws_sender, ws_receiver));
     }
 

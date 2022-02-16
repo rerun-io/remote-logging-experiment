@@ -64,12 +64,12 @@ echo "Finished: docs/${CRATE_NAME_SNAKE_CASE}.wasm"
 if [ "${OPEN}" = true ]; then
   if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     # Linux, ex: Fedora
-    xdg-open http://localhost:8080/index.html
+    xdg-open http://localhost:8787/index.html
   elif [[ "$OSTYPE" == "msys" ]]; then
     # Windows
-    start http://localhost:8080/index.html
+    start http://localhost:8787/index.html
   else
     # Darwin/MacOS, or something else
-    open http://localhost:8080/index.html
+    open http://localhost:8787/index.html
   fi
 fi

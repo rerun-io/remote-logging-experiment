@@ -23,9 +23,7 @@ pub struct Viewer {
 }
 
 impl Viewer {
-    pub fn new(mut ws_sender: WsSender, ws_receiver: WsReceiver) -> Self {
-        ws_sender.send(WsMessage::Binary(rr_data::PubSubMsg::ListTopics.encode()));
-
+    pub fn new(ws_sender: WsSender, ws_receiver: WsReceiver) -> Self {
         Self {
             ws_sender,
             ws_receiver,
@@ -41,6 +39,8 @@ impl Viewer {
         while let Some(event) = self.ws_receiver.try_recv() {
             if let WsEvent::Opened = &event {
                 tracing::info!("Web-socket connection opened.");
+                self.ws_sender
+                    .send(WsMessage::Binary(rr_data::PubSubMsg::ListTopics.encode()));
             }
             if let WsEvent::Message(WsMessage::Binary(payload)) = &event {
                 if let Ok(pub_sub_msg) = rr_data::PubSubMsg::decode(payload) {
@@ -153,7 +153,7 @@ impl Viewer {
         self.ws_sender.send(WsMessage::Binary(
             rr_data::PubSubMsg::SubscribeTo(topic_meta.id).encode(),
         ));
-        self.topic_viewer = Some(TopicViewer::new(topic_meta.clone()));
+        self.topic_viewer = Some(TopicViewer::new(topic_meta));
     }
 }
 

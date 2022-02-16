@@ -23,6 +23,7 @@ pub async fn ws_connect_async(
         .map_err(|err| err.to_string())?;
 
     tracing::info!("WebSocket handshake has been successfully completed");
+    on_event(WsEvent::Opened);
 
     let (write, read) = ws_stream.split();
 
