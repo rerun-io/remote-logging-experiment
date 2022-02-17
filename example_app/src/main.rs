@@ -1,6 +1,7 @@
 #[tokio::main]
 async fn main() {
     let pub_sub_port = rr_data::DEFAULT_PUB_SUB_PORT;
+    let pub_sub_url = format!("ws://127.0.0.1:{}", rr_data::DEFAULT_PUB_SUB_PORT);
 
     #[cfg(feature = "pub_sub_server")]
     let pub_sub_handle = {
@@ -11,7 +12,7 @@ async fn main() {
         })
     };
 
-    logger::setup_logging(&format!("ws://127.0.0.1:{}", pub_sub_port)); // This starts sending things to pub-sub server
+    logger::setup_logging(&pub_sub_url); // This starts sending things to pub-sub server
 
     #[cfg(feature = "web_server")]
     let web_server_handle = {
@@ -20,17 +21,16 @@ async fn main() {
         let web_server_handle = tokio::spawn(async move {
             web_server::run(port).await.unwrap();
         });
+        std::thread::sleep(std::time::Duration::from_millis(100)); // give web server time to start
+
         #[cfg(feature = "webbrowser")]
         {
-            let url = format!("http://127.0.0.1:{}", port);
-            if webbrowser::open(&url).is_ok() {
-                std::thread::sleep(std::time::Duration::from_millis(1000)); // give it time to start
-            }
+            let viewer_url = format!("http://127.0.0.1:{}?pubsub={}", port, pub_sub_url);
+            webbrowser::open(&viewer_url).ok();
         }
+
         web_server_handle
     };
-
-    std::thread::sleep(std::time::Duration::from_millis(100)); // give everything time to start
 
     {
         let _guard = tracing::info_span!("main").entered();

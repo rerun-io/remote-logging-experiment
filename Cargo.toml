@@ -12,7 +12,7 @@ members = [
 
 [patch.crates-io]
 # If you want to use the bleeding edge version of egui/eframe:
-eframe = { git = "https://github.com/emilk/egui", branch = "master" }
+eframe = { git = "https://github.com/emilk/egui", branch = "web-query-string" }
 
 # If you want to use a fork:
 # eframe = { path = "../egui/eframe" }

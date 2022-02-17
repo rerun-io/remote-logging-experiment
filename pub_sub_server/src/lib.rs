@@ -54,7 +54,7 @@ impl Server {
 
         let listener = TcpListener::bind(&bind_addr)
             .await
-            .context("Can't listen")?;
+            .with_context(|| format!("Can't listen on {:?}", bind_addr))?;
         eprintln!("Pub-sub listening on: {}", bind_addr);
 
         Ok(Self { listener })

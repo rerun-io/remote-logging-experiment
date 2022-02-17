@@ -73,7 +73,13 @@ impl Viewer {
                             tracing::debug!("Server sent ListTopics message. Weird");
                         }
                         rr_data::PubSubMsg::AllTopics(all_topics) => {
+                            tracing::debug!("Got {} topics", all_topics.len());
                             self.topics = all_topics;
+                            if self.topic_viewer.is_none() {
+                                if let Some(latest_topic) = self.topics.last().cloned() {
+                                    self.subscribe_to(latest_topic);
+                                }
+                            }
                         }
                     }
                     continue;
@@ -81,6 +87,7 @@ impl Viewer {
             }
             self.event_log.on_text(format!("Recevied {:?}", event));
         }
+
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
