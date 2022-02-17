@@ -21,3 +21,6 @@ hyper = { version = "0.14", features = ["full"] }
 tokio = { version = "1.0.0", default-features = false, features = ["macros", "rt-multi-thread"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
+
+[build-dependencies]
+glob = "0.3.0"
