@@ -72,8 +72,8 @@ struct Info {
 impl Info {
     fn point_from_ns(&self, options: &FlameGraph, ns: NanoSecond) -> f32 {
         self.canvas.min.x
-            + options.sideways_pan_in_points
-            + self.canvas.width() * ((ns - self.min_ns) as f32) / options.canvas_width_ns
+            + self.canvas.width() * (ns.saturating_sub(self.min_ns) as f32 + options.pan_x_in_ns)
+                / options.canvas_width_ns
     }
 }
 
@@ -86,7 +86,7 @@ pub struct FlameGraph {
     pub canvas_width_ns: f32,
 
     /// How much we have panned sideways:
-    pub sideways_pan_in_points: f32,
+    pub pan_x_in_ns: f32,
 
     // --------------------
     // Visuals:
@@ -114,11 +114,11 @@ impl Default for FlameGraph {
     fn default() -> Self {
         Self {
             canvas_width_ns: 0.0,
-            sideways_pan_in_points: 0.0,
+            pan_x_in_ns: 0.0,
 
             // cull_width: 0.5, // save some CPU?
             cull_width: 0.0, // no culling
-            min_width: 1.0,
+            min_width: 2.0,
 
             rect_height: 16.0,
             spacing: 2.0,
@@ -135,6 +135,23 @@ impl FlameGraph {
     pub fn ui(&mut self, ui: &mut egui::Ui, span_tree: &SpanTree) {
         self.filter.ui(ui);
         flamegraph_ui(self, ui, span_tree);
+    }
+
+    fn pan_x_in_points(&self, info: &Info) -> f32 {
+        self.pan_x_in_ns / self.ns_per_point(info)
+    }
+
+    fn set_pan_x_in_points(&mut self, info: &Info, pan_x_in_points: f32) {
+        self.pan_x_in_ns = pan_x_in_points * self.ns_per_point(info);
+    }
+
+    fn apply_pan_x_delta_in_points(&mut self, info: &Info, delta_in_points: f32) {
+        self.pan_x_in_ns += delta_in_points * self.ns_per_point(info);
+    }
+
+    fn ns_per_point(&self, info: &Info) -> f32 {
+        let point_width = info.canvas.width();
+        self.canvas_width_ns / point_width
     }
 }
 
@@ -188,14 +205,14 @@ fn flamegraph_ui(options: &mut FlameGraph, ui: &mut egui::Ui, span_tree: &SpanTr
 
 fn interact_with_canvas(view: &mut FlameGraph, response: &Response, info: &Info) {
     if response.drag_delta().x != 0.0 {
-        view.sideways_pan_in_points += response.drag_delta().x;
+        view.apply_pan_x_delta_in_points(info, response.drag_delta().x);
         view.zoom_to_relative_ns_range = None;
     }
 
     if response.hovered() {
         // Sideways pan with e.g. a touch pad:
         if info.ctx.input().scroll_delta.x != 0.0 {
-            view.sideways_pan_in_points += info.ctx.input().scroll_delta.x;
+            view.apply_pan_x_delta_in_points(info, info.ctx.input().scroll_delta.x);
             view.zoom_to_relative_ns_range = None;
         }
 
@@ -206,12 +223,14 @@ fn interact_with_canvas(view: &mut FlameGraph, response: &Response, info: &Info)
         }
 
         if zoom_factor != 1.0 {
+            let pan_x_in_points = view.pan_x_in_points(info);
             view.canvas_width_ns /= zoom_factor;
-
             if let Some(mouse_pos) = response.hover_pos() {
                 let zoom_center = mouse_pos.x - info.canvas.min.x;
-                view.sideways_pan_in_points =
-                    (view.sideways_pan_in_points - zoom_center) * zoom_factor + zoom_center;
+                view.set_pan_x_in_points(
+                    info,
+                    (pan_x_in_points - zoom_center) * zoom_factor + zoom_center,
+                );
             }
             view.zoom_to_relative_ns_range = None;
         }
@@ -232,12 +251,13 @@ fn interact_with_canvas(view: &mut FlameGraph, response: &Response, info: &Info)
         let target_canvas_width_ns = (max_ns - min_ns) as f32;
         let target_pan_in_points = -canvas_width * min_ns as f32 / target_canvas_width_ns;
 
+        let pan_x_in_points = view.pan_x_in_points(info);
         view.canvas_width_ns = lerp(
             view.canvas_width_ns.recip()..=target_canvas_width_ns.recip(),
             t,
         )
         .recip();
-        view.sideways_pan_in_points = lerp(view.sideways_pan_in_points..=target_pan_in_points, t);
+        view.set_pan_x_in_points(info, lerp(pan_x_in_points..=target_pan_in_points, t));
 
         if t >= 1.0 {
             view.zoom_to_relative_ns_range = None;
