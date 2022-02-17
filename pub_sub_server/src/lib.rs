@@ -1,3 +1,7 @@
+#![forbid(unsafe_code)]
+#![warn(clippy::all, rust_2018_idioms)]
+#![allow(clippy::manual_range_contains)]
+
 use futures_util::{stream::SplitSink, SinkExt, StreamExt};
 use parking_lot::Mutex;
 use rr_data::{PubSubMsg, TopicId, TopicMeta};

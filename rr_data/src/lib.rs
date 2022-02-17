@@ -1,3 +1,7 @@
+#![forbid(unsafe_code)]
+#![warn(clippy::all, rust_2018_idioms)]
+#![allow(clippy::manual_range_contains)]
+
 use std::sync::Arc;
 
 pub const DEFAULT_PUB_SUB_PORT: u16 = 9002;
@@ -57,7 +61,7 @@ pub struct TopicMeta {
 
 /// A date-time represented as nanoseconds since unix epoch
 #[derive(
-    Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
+    Copy, Clone, PartialOrd, Ord, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
 )]
 pub struct Time(i64);
 
@@ -70,6 +74,35 @@ impl Time {
     #[inline]
     pub fn nanos_since_epoch(&self) -> i64 {
         self.0
+    }
+
+    /// Human-readable formatting
+    pub fn format(&self) -> String {
+        let nanos_since_epoch = self.nanos_since_epoch();
+        let years_since_epoch = nanos_since_epoch / 1_000_000_000 / 60 / 60 / 24 / 365;
+        if 50 <= years_since_epoch && years_since_epoch <= 150 {
+            use chrono::TimeZone as _;
+            let datetime = chrono::Utc.timestamp(
+                nanos_since_epoch / 1_000_000_000,
+                (nanos_since_epoch % 1_000_000_000) as _,
+            );
+
+            if datetime.date() == chrono::offset::Utc::today() {
+                datetime.format("%H:%M:%S%.3fZ").to_string()
+            } else {
+                datetime.format("%Y-%m-%d %H:%M:%S%.3fZ").to_string()
+            }
+        } else {
+            let secs = nanos_since_epoch as f64 * 1e-9;
+            // assume relative time
+            format!("+{:.03}s", secs)
+        }
+    }
+}
+
+impl std::fmt::Debug for Time {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.format().fmt(f)
     }
 }
 

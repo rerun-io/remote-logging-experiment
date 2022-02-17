@@ -1,3 +1,7 @@
+#![forbid(unsafe_code)]
+#![warn(clippy::all, rust_2018_idioms)]
+#![allow(clippy::manual_range_contains)]
+
 use std::task::{Context, Poll};
 
 use futures_util::future;

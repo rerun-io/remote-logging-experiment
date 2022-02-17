@@ -4,6 +4,7 @@ members = [
     "ewebsock",
     "example_app",
     "logger",
+    "native_helper",
     "pub_sub_server",
     "rr_data",
     "viewer",

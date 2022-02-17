@@ -818,12 +818,9 @@ dependencies = [
 name = "example_app"
 version = "0.1.0"
 dependencies = [
- "logger",
- "pub_sub_server",
- "rr_data",
+ "native_helper",
  "tokio",
  "tracing",
- "web_server",
  "webbrowser",
 ]
 
@@ -1413,6 +1410,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "native_helper"
+version = "0.1.0"
+dependencies = [
+ "logger",
+ "pub_sub_server",
+ "rr_data",
+ "tokio",
+ "tracing",
+ "web_server",
+ "webbrowser",
+]
+
+[[package]]
 name = "ndk"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1911,6 +1921,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "chrono",
  "once_cell",
  "serde",
  "uuid",
@@ -2402,7 +2413,6 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 name = "viewer"
 version = "0.1.0"
 dependencies = [
- "chrono",
  "console_error_panic_hook",
  "eframe",
  "ewebsock",

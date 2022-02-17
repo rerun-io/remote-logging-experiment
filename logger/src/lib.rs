@@ -1,3 +1,7 @@
+#![forbid(unsafe_code)]
+#![warn(clippy::all, rust_2018_idioms)]
+#![allow(clippy::manual_range_contains)]
+
 use parking_lot::Mutex;
 use rr_data::PubSubMsg;
 use std::sync::Arc;

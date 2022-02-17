@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 #![warn(clippy::all, rust_2018_idioms)]
+#![allow(clippy::manual_range_contains)]
 
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(feature = "websocket")]

@@ -1,5 +1,5 @@
 [package]
-name = "example_app"
+name = "native_helper"
 version = "0.1.0"
 authors = ["Emil Ernerfeldt <emil.ernerfeldt@gmail.com>"]
 edition = "2021"
@@ -13,8 +13,18 @@ include = [
 ]
 
 
+[features]
+# default = []
+# default = ["pub_sub_server"]
+# default = ["webbrowser", "web_server"]
+default = ["pub_sub_server", "webbrowser", "web_server"]
+
+
 [dependencies]
-native_helper = { path = "../native_helper" }
+logger = { path = "../logger" }
+pub_sub_server = { path = "../pub_sub_server", optional = true }
+rr_data = { path = "../rr_data" }
+web_server = { path = "../web_server", optional = true }
 
 tracing = { version = "0.1", features = ["attributes"] }
 webbrowser = { version = "0.5", optional = true }

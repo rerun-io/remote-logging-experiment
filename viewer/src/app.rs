@@ -44,7 +44,7 @@ impl epi::App for WsClientApp {
         });
 
         if let Some(frontend) = &mut self.frontend {
-            frontend.ui(ctx, frame);
+            frontend.ui(ctx);
         }
     }
 }

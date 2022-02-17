@@ -19,7 +19,6 @@ crate-type = ["cdylib", "rlib"]
 ewebsock = { path = "../ewebsock" }
 rr_data = { path = "../rr_data" }
 
-chrono = { version = "0.4", features = ["js-sys", "wasmbind"] }
 eframe = { version = "0.16.0", features = ["persistence"] }
 itertools = "0.10"
 rand = { version = "0.8", features = ["small_rng"] }

@@ -45,9 +45,8 @@ impl EventLog {
     fn ui_msg(&self, ui: &mut egui::Ui, span_tree: &SpanTree, msg: &rr_data::Message) {
         let rr_data::Message { log_time, msg_enum } = msg;
 
-        let time = crate::misc::format_time(log_time);
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new(time).weak().monospace());
+            ui.label(egui::RichText::new(log_time.format()).weak().monospace());
             self.ui_msg_enum(ui, span_tree, msg_enum);
         });
     }

@@ -1,8 +1,6 @@
-use eframe::{egui, epi};
+use eframe::egui;
 use ewebsock::{WsEvent, WsMessage, WsReceiver, WsSender};
 use rr_data::TopicMeta;
-
-use crate::misc::format_time;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum View {
@@ -35,7 +33,7 @@ impl Viewer {
         }
     }
 
-    pub fn ui(&mut self, ctx: &egui::Context, frame: &epi::Frame) {
+    pub fn ui(&mut self, ctx: &egui::Context) {
         while let Some(event) = self.ws_receiver.try_recv() {
             if let WsEvent::Opened = &event {
                 tracing::info!("Web-socket connection opened.");
@@ -73,7 +71,7 @@ impl Viewer {
                             tracing::debug!("Server sent ListTopics message. Weird");
                         }
                         rr_data::PubSubMsg::AllTopics(all_topics) => {
-                            tracing::debug!("Got {} topics", all_topics.len());
+                            tracing::debug!("Received {} topic(s)", all_topics.len());
                             self.topics = all_topics;
                             if self.topic_viewer.is_none() {
                                 if let Some(latest_topic) = self.topics.last().cloned() {
@@ -90,16 +88,7 @@ impl Viewer {
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
-                ui.menu_button("File", |ui| {
-                    if ui.button("Quit").clicked() {
-                        frame.quit();
-                    }
-                });
-
-                ui.separator();
-
                 egui::menu::bar(ui, |ui| {
-                    ui.label("View:");
                     ui.selectable_value(&mut self.view, View::EventLog, "Event log");
                     ui.selectable_value(&mut self.view, View::SpanTree, "Span tree");
                     ui.selectable_value(&mut self.view, View::Flamegraph, "Flame graph");
@@ -140,8 +129,7 @@ impl Viewer {
     fn show_topic_list(&self, ui: &mut egui::Ui) -> Option<TopicMeta> {
         let mut clicked = None;
         for topic_meta in &self.topics {
-            let topic_summary =
-                format!("{} - {}", format_time(&topic_meta.created), topic_meta.name);
+            let topic_summary = format!("{} - {}", topic_meta.created.format(), topic_meta.name);
             let is_selected = self
                 .topic_viewer
                 .as_ref()

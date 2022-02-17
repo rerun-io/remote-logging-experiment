@@ -1,66 +1,42 @@
+#![forbid(unsafe_code)]
+#![warn(clippy::all, rust_2018_idioms)]
+#![allow(clippy::manual_range_contains)]
+
 #[tokio::main]
 async fn main() {
-    let pub_sub_port = rr_data::DEFAULT_PUB_SUB_PORT;
-    let pub_sub_url = format!("ws://127.0.0.1:{}", rr_data::DEFAULT_PUB_SUB_PORT);
-
-    #[cfg(feature = "pub_sub_server")]
-    let pub_sub_handle = {
-        eprintln!("Starting pub-sub-server…");
-        let server = pub_sub_server::Server::new(pub_sub_port).await.unwrap();
-        tokio::spawn(async move {
-            server.run().await.unwrap();
-        })
-    };
-
-    logger::setup_logging(&pub_sub_url); // This starts sending things to pub-sub server
-
-    #[cfg(feature = "web_server")]
-    let web_server_handle = {
-        tracing::debug!("Starting web server…");
-        let port = rr_data::DEFAULT_VIEWER_WEB_SERVER_PORT;
-        let web_server_handle = tokio::spawn(async move {
-            web_server::run(port).await.unwrap();
-        });
-        std::thread::sleep(std::time::Duration::from_millis(100)); // give web server time to start
-
-        #[cfg(feature = "webbrowser")]
-        {
-            let viewer_url = format!("http://127.0.0.1:{}?pubsub={}", port, pub_sub_url);
-            webbrowser::open(&viewer_url).ok();
-        }
-
-        web_server_handle
-    };
+    let remote_logger = native_helper::RemoteLogger::new().await;
 
     {
         let _guard = tracing::info_span!("main").entered();
 
-        let mut handles = vec![];
-        {
-            let _guard = tracing::info_span!("spawn").entered();
+        for run in 0..1 {
+            let mut handles = vec![];
+            {
+                let _guard = tracing::info_span!("spawn", run).entered();
 
-            for task_nr in 0..2 {
-                let child_span = tracing::info_span!("task", task_nr).or_current();
-                let handle = tokio::task::spawn_blocking(move || {
-                    child_span.in_scope(|| {
-                        my_function();
+                for task_nr in 0..2 {
+                    let child_span = tracing::info_span!("task", task_nr).or_current();
+                    let handle = tokio::task::spawn_blocking(move || {
+                        child_span.in_scope(|| {
+                            my_function();
+                        });
                     });
-                });
-                handles.push(handle);
+                    handles.push(handle);
+                }
+
+                std::thread::sleep(std::time::Duration::from_millis(20));
             }
-        }
 
-        std::thread::sleep(std::time::Duration::from_millis(10));
-
-        for handle in handles {
-            handle.await.unwrap();
+            {
+                let _guard = tracing::info_span!("join").entered();
+                for handle in handles {
+                    handle.await.unwrap();
+                }
+            }
         }
     }
 
-    #[cfg(feature = "pub_sub_server")]
-    pub_sub_handle.await.unwrap();
-    #[cfg(feature = "web_server")]
-    web_server_handle.await.unwrap();
+    remote_logger.join().await;
 }
 
 #[tracing::instrument]

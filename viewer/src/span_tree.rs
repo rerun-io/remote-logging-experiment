@@ -76,7 +76,7 @@ impl std::fmt::Display for TimeInterval {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fn format_optional_time(time: Option<Time>) -> String {
             match time {
-                Some(time) => crate::misc::format_time(&time),
+                Some(time) => time.format(),
                 None => "?".to_owned(),
             }
         }
@@ -369,8 +369,7 @@ impl SpanTree {
         } = data_event;
 
         let response = ui.horizontal(|ui| {
-            let time = crate::misc::format_time(time);
-            ui.label(egui::RichText::new(time).weak().monospace());
+            ui.label(egui::RichText::new(time.format()).weak().monospace());
 
             for (key, value) in fields {
                 ui.label(egui::RichText::new(format!("{}: ", key)).weak());

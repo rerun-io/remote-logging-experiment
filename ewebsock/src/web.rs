@@ -49,13 +49,9 @@ pub fn ws_connect(url: String, on_event: EventHandler) -> Result<WsSender> {
         let onmessage_callback = Closure::wrap(Box::new(move |e: web_sys::MessageEvent| {
             // Handle difference Text/Binary,...
             if let Ok(abuf) = e.data().dyn_into::<js_sys::ArrayBuffer>() {
-                tracing::debug!("message event, received arraybuffer: {:?}", abuf);
                 let array = js_sys::Uint8Array::new(&abuf);
-                let len = array.byte_length() as usize;
-                tracing::debug!("Arraybuffer received {} bytes: {:?}", len, array.to_vec());
                 on_event(WsEvent::Message(WsMessage::Binary(array.to_vec())));
             } else if let Ok(blob) = e.data().dyn_into::<web_sys::Blob>() {
-                tracing::debug!("message event, received blob: {:?}", blob);
                 // better alternative to juggling with FileReader is to use https://crates.io/crates/gloo-file
                 let fr = web_sys::FileReader::new().unwrap();
                 let fr_c = fr.clone();
@@ -63,8 +59,6 @@ pub fn ws_connect(url: String, on_event: EventHandler) -> Result<WsSender> {
                 let on_event = on_event.clone();
                 let onloadend_cb = Closure::wrap(Box::new(move |_e: web_sys::ProgressEvent| {
                     let array = js_sys::Uint8Array::new(&fr_c.result().unwrap());
-                    let len = array.byte_length() as usize;
-                    tracing::debug!("Blob received {} bytes: {:?}", len, array.to_vec());
                     on_event(WsEvent::Message(WsMessage::Binary(array.to_vec())));
                 })
                     as Box<dyn FnMut(web_sys::ProgressEvent)>);
@@ -72,12 +66,11 @@ pub fn ws_connect(url: String, on_event: EventHandler) -> Result<WsSender> {
                 fr.read_as_array_buffer(&blob).expect("blob not readable");
                 onloadend_cb.forget();
             } else if let Ok(txt) = e.data().dyn_into::<js_sys::JsString>() {
-                tracing::debug!("message event, received Text: {:?}", txt);
                 on_event(WsEvent::Message(WsMessage::Text(string_from_js_string(
                     txt,
                 ))));
             } else {
-                tracing::debug!("message event, received Unknown: {:?}", e.data());
+                tracing::debug!("Unknown websocket message received: {:?}", e.data());
                 on_event(WsEvent::Message(WsMessage::Unknown(string_from_js_value(
                     e.data(),
                 ))));
@@ -107,7 +100,6 @@ pub fn ws_connect(url: String, on_event: EventHandler) -> Result<WsSender> {
 
     {
         let onopen_callback = Closure::wrap(Box::new(move |_| {
-            tracing::info!("socket opened");
             on_event(WsEvent::Opened);
         }) as Box<dyn FnMut(wasm_bindgen::JsValue)>);
         ws.set_onopen(Some(onopen_callback.as_ref().unchecked_ref()));
