@@ -5,6 +5,7 @@
 // ----------------------------------------------------------------------------
 
 mod app;
+mod data_event_log;
 mod event_log;
 mod flamegraph;
 mod misc;

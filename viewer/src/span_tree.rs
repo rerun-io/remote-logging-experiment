@@ -279,14 +279,14 @@ impl SpanTree {
                 }
             }
 
-            for (t, _) in &node.events {
-                observe_time(t);
-            }
+            // for (t, _) in &node.events {
+            //     observe_time(t);
+            // }
         }
 
-        for (t, _) in &self.orphan_events {
-            observe_time(t);
-        }
+        // for (t, _) in &self.orphan_events {
+        //     observe_time(t);
+        // }
 
         if min <= max {
             Some((min, max))
@@ -397,6 +397,10 @@ impl SpanTree {
             parent_span_id,
             fields,
         } = data_event;
+
+        if let Some(callsite) = self.callsites.get(callsite_id) {
+            log_level_ui(ui, callsite.level);
+        }
 
         let response = ui_fields(ui, fields);
 
@@ -515,4 +519,25 @@ fn ui_fields(ui: &mut egui::Ui, fields: &rr_data::FieldSet) -> egui::Response {
         }
     })
     .response
+}
+
+fn log_level_ui(ui: &mut egui::Ui, level: rr_data::LogLevel) {
+    match level {
+        rr_data::LogLevel::Trace => {
+            ui.weak("trace");
+        }
+        rr_data::LogLevel::Debug => {
+            ui.label("debug");
+        }
+        rr_data::LogLevel::Info => {
+            ui.strong("info");
+        }
+        rr_data::LogLevel::Warn => {
+            let orange = egui::Color32::from_rgb(255, 165, 0);
+            ui.colored_label(orange, "warn");
+        }
+        rr_data::LogLevel::Error => {
+            ui.colored_label(egui::Color32::RED, "error");
+        }
+    }
 }

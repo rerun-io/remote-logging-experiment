@@ -4,7 +4,8 @@ use rr_data::TopicMeta;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum View {
-    EventLog,
+    Events,
+    Log,
     SpanTree,
     Flamegraph,
 }
@@ -13,11 +14,10 @@ pub struct Viewer {
     ws_sender: WsSender,
     ws_receiver: WsReceiver,
     topics: Vec<TopicMeta>,
-    span_tree: crate::span_tree::SpanTree,
     view: View,
     /// What we are viewing
     topic_viewer: Option<TopicViewer>,
-    event_log: crate::event_log::EventLog,
+    full_event_log: crate::event_log::EventLog,
 }
 
 impl Viewer {
@@ -26,10 +26,9 @@ impl Viewer {
             ws_sender,
             ws_receiver,
             topics: Default::default(),
-            span_tree: Default::default(),
             view: View::Flamegraph,
             topic_viewer: None,
-            event_log: Default::default(),
+            full_event_log: Default::default(),
         }
     }
 
@@ -56,11 +55,10 @@ impl Viewer {
                         }
                         rr_data::PubSubMsg::TopicMsg(_topic_id, payload) => {
                             if let Ok(rr_msg) = rr_data::Message::decode(&payload) {
-                                self.span_tree.on_mesage(&rr_msg);
                                 if let Some(topic_viewer) = &mut self.topic_viewer {
                                     topic_viewer.on_message(&rr_msg);
                                 }
-                                self.event_log.on_message(rr_msg);
+                                self.full_event_log.on_message(rr_msg);
                                 continue;
                             }
                         }
@@ -83,18 +81,8 @@ impl Viewer {
                     continue;
                 }
             }
-            self.event_log.on_text(format!("Recevied {:?}", event));
+            self.full_event_log.on_text(format!("Recevied {:?}", event));
         }
-
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
-                egui::menu::bar(ui, |ui| {
-                    ui.selectable_value(&mut self.view, View::EventLog, "Event log");
-                    ui.selectable_value(&mut self.view, View::SpanTree, "Span tree");
-                    ui.selectable_value(&mut self.view, View::Flamegraph, "Flame graph");
-                });
-            });
-        });
 
         egui::SidePanel::left("left_bar")
             .resizable(false)
@@ -109,9 +97,25 @@ impl Viewer {
                 });
             });
 
+        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+            egui::menu::bar(ui, |ui| {
+                egui::menu::bar(ui, |ui| {
+                    ui.selectable_value(&mut self.view, View::Events, "Events");
+                    ui.selectable_value(&mut self.view, View::Log, "Log");
+                    ui.selectable_value(&mut self.view, View::SpanTree, "Span tree");
+                    ui.selectable_value(&mut self.view, View::Flamegraph, "Flame graph");
+                });
+            });
+        });
+
         egui::CentralPanel::default().show(ctx, |ui| match self.view {
-            View::EventLog => {
-                self.event_log.ui(ui, &self.span_tree);
+            View::Events => {
+                self.full_event_log.ui(ui);
+            }
+            View::Log => {
+                if let Some(topic_viewer) = &mut self.topic_viewer {
+                    topic_viewer.data_event_log.ui(ui, &topic_viewer.span_tree);
+                }
             }
             View::SpanTree => {
                 if let Some(topic_viewer) = &mut self.topic_viewer {
@@ -143,7 +147,7 @@ impl Viewer {
 
     fn subscribe_to(&mut self, topic_meta: TopicMeta) {
         tracing::info!("Subscribing to new topic: {:?}", topic_meta);
-        self.event_log
+        self.full_event_log
             .on_text(format!("Subscribing to new topic: {:?}", topic_meta));
         self.ws_sender.send(WsMessage::Binary(
             rr_data::PubSubMsg::SubscribeTo(topic_meta.id).encode(),
@@ -156,6 +160,7 @@ pub struct TopicViewer {
     topic_meta: TopicMeta,
     span_tree: crate::span_tree::SpanTree,
     flame_graph: crate::flamegraph::FlameGraph,
+    data_event_log: crate::data_event_log::DataEventLog,
 }
 
 impl TopicViewer {
@@ -164,10 +169,12 @@ impl TopicViewer {
             topic_meta,
             span_tree: Default::default(),
             flame_graph: Default::default(),
+            data_event_log: Default::default(),
         }
     }
 
     pub fn on_message(&mut self, rr_msg: &rr_data::Message) {
+        self.data_event_log.on_message(rr_msg);
         self.span_tree.on_mesage(rr_msg);
     }
 }
