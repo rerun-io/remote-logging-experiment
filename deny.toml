@@ -28,7 +28,7 @@ deny = [
 skip = [
 ]
 skip-tree = [
-    { name = "eframe", version = "0.16.0" }, # eframe uses winit, which pulls in a lot of old duplicated crates
+    { name = "eframe" }, # eframe uses winit, which pulls in a lot of old duplicated crates
 ]
 
 
