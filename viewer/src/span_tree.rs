@@ -91,7 +91,7 @@ impl std::fmt::Display for TimeInterval {
 }
 
 impl SpanTree {
-    pub fn on_mesage(&mut self, message: &rr_data::Message) {
+    pub fn on_mesage(&mut self, message: &rr_data::Message, warnings: bool) {
         let rr_data::Message { log_time, msg_enum } = message;
         match &msg_enum {
             rr_data::MessageEnum::NewCallsite(callsite) => {
@@ -112,14 +112,14 @@ impl SpanTree {
                         events: Default::default(),
                     },
                 );
-                if prev.is_some() {
-                    tracing::warn!("Reused span id");
+                if warnings && prev.is_some() {
+                    tracing::warn!("Reused span id {}", span.id);
                 }
 
                 if let Some(parent_span_id) = &span.parent_span_id {
                     if let Some(parent_node) = self.nodes.get_mut(parent_span_id) {
                         parent_node.children.insert(span.id);
-                    } else {
+                    } else if warnings {
                         tracing::warn!("Unknown parent span");
                     }
                 } else {
@@ -133,50 +133,48 @@ impl SpanTree {
                         min: Some(*log_time),
                         max: None,
                     });
-                } else {
-                    tracing::warn!("Opened unknown span");
+                } else if warnings {
+                    tracing::warn!("Opened unknown span {}", span_id);
                 }
             }
             rr_data::MessageEnum::ExitSpan(span_id) => {
                 if let Some(node) = self.nodes.get_mut(span_id) {
                     if let Some(interval) = node.intervals.last_mut() {
-                        if interval.max.is_none() {
-                            interval.max = Some(*log_time);
-                        } else {
-                            tracing::warn!("Exited span that was never opened");
-                            node.intervals.push(TimeInterval {
-                                min: None,
-                                max: Some(*log_time),
-                            });
+                        if warnings && interval.max.is_some() {
+                            tracing::warn!("Exited span {} that was already closed", span_id);
                         }
+
+                        interval.max = Some(*log_time);
                     } else {
-                        tracing::warn!("Exited span that was never opened");
+                        if warnings {
+                            tracing::warn!("Exited span {} that was never opened", span_id);
+                        }
                         node.intervals.push(TimeInterval {
                             min: None,
                             max: Some(*log_time),
                         });
                     }
-                } else {
+                } else if warnings {
                     tracing::warn!("Exited unknown span");
                 }
             }
             rr_data::MessageEnum::DestroySpan(span_id) => {
                 if let Some(node) = self.nodes.get_mut(span_id) {
-                    if node.lifetime.max.is_some() {
+                    if warnings && node.lifetime.max.is_some() {
                         tracing::warn!("Destroying a span twice");
                     }
                     node.lifetime.max = Some(*log_time);
-                } else {
+                } else if warnings {
                     tracing::warn!("Destroying unknown span");
                 }
             }
             rr_data::MessageEnum::SpanFollowsFrom { span, follows } => {
                 if let Some(node) = self.nodes.get_mut(span) {
-                    if node.follows.is_some() {
+                    if warnings && node.follows.is_some() {
                         tracing::warn!("Span follows multiple spans");
                     }
                     node.follows = Some(*follows);
-                } else {
+                } else if warnings {
                     tracing::warn!("Unknown span");
                 }
             }
@@ -184,7 +182,7 @@ impl SpanTree {
                 if let Some(span_id) = &event.parent_span_id {
                     if let Some(node) = self.nodes.get_mut(span_id) {
                         node.events.push((*log_time, event.clone()));
-                    } else {
+                    } else if warnings {
                         tracing::warn!("Event with unknown span");
                     }
                 } else {
@@ -299,22 +297,18 @@ impl SpanTree {
     ///
     /// Some children are "spawned" children (in separate async tasks).
     /// There can be only one "direct" child.
-    pub fn direct_child_of(&self, node: &SpanNode) -> Option<SpanId> {
-        let mut direct_child = None;
+    pub fn direct_children_of(&self, node: &SpanNode) -> Vec<SpanId> {
+        let mut direct_children = vec![];
 
         for child_id in &node.children {
             if let Some(child) = self.nodes.get(child_id) {
                 if child.is_direct_child_of(node) {
-                    if direct_child.is_some() {
-                        return None; // there can be only one
-                    } else {
-                        direct_child = Some(*child_id);
-                    }
+                    direct_children.push(*child_id);
                 }
             }
         }
 
-        direct_child
+        direct_children
     }
 }
 
@@ -422,7 +416,7 @@ impl SpanTree {
         if let Some(node) = self.nodes.get(span_id) {
             self.span_summary_ui(ui, node);
         } else {
-            ui.colored_label(ERROR_COLOR, "Missing span");
+            ui.colored_label(ERROR_COLOR, format!("Missing span {}", span_id));
         }
     }
 
@@ -437,7 +431,7 @@ impl SpanTree {
         } = node;
 
         let rr_data::Span {
-            id: _,
+            id,
             parent_span_id,
             callsite_id,
             fields,
@@ -447,6 +441,10 @@ impl SpanTree {
             .num_columns(2)
             .striped(true)
             .show(ui, |ui| {
+                ui.label("Id:");
+                ui.label(id.to_string());
+                ui.end_row();
+
                 if let Some(callsite) = self.callsites.get(callsite_id) {
                     // TODO: more?
                     ui.label("Name:");

@@ -1,7 +1,8 @@
 use crate::span_tree::{SpanNode, SpanTree};
 use eframe::egui;
 use egui::*;
-use rr_data::CallsiteId;
+use rr_data::{CallsiteId, SpanId};
+use std::collections::{HashSet, VecDeque};
 
 type NanoSecond = i64;
 
@@ -269,6 +270,14 @@ fn interact_with_canvas(view: &mut FlameGraph, response: &Response, info: &Info)
 
 // ----------------------------------------------------------------------------
 
+struct DeferredRoot {
+    /// The parent that spawned us (if any) was painted here.
+    /// Used to paint a connecting line.
+    parent_bottom_y: Option<f32>,
+
+    node_id: SpanId,
+}
+
 /// Paints the actual flamegraph
 fn ui_canvas(options: &mut FlameGraph, info: &Info, span_tree: &SpanTree) -> f32 {
     if options.canvas_width_ns <= 0.0 {
@@ -281,15 +290,65 @@ fn ui_canvas(options: &mut FlameGraph, info: &Info, span_tree: &SpanTree) -> f32
     let mut cursor_y = info.canvas.top();
     cursor_y += info.text_height; // Leave room for time labels
 
-    for span_id in &span_tree.roots {
-        if let Some(node) = span_tree.nodes.get(span_id) {
-            paint_node_and_children(options, info, span_tree, node, &mut cursor_y);
-        }
+    let mut roots = VecDeque::from_iter(span_tree.roots.iter().map(|&node_id| DeferredRoot {
+        parent_bottom_y: None,
+        node_id,
+    }));
 
-        cursor_y += 16.0; // spacing between roots
+    while let Some(root) = roots.pop_front() {
+        if let Some(node) = span_tree.nodes.get(&root.node_id) {
+            let child_top_y = cursor_y;
+            let mut bbox = Rect::NOTHING;
+            let result = paint_node_and_children(
+                options,
+                info,
+                span_tree,
+                node,
+                &mut bbox,
+                &mut cursor_y,
+                &mut roots,
+            );
+            paint_block_bbox(&info.painter, bbox);
+
+            if let Some(parent_bottom_y) = root.parent_bottom_y {
+                if let Some(child_color) = result.color {
+                    let x = result.rect.left();
+                    let path = [pos2(x, parent_bottom_y), pos2(x, child_top_y)];
+                    let stroke = Stroke::new(1.0, child_color * 0.5);
+                    info.painter
+                        .add(Shape::Vec(Shape::dashed_line(&path, stroke, 5.0, 1.0)));
+                    // TODO: paint the line UNDER everything else (needs egui improvements).
+                }
+            }
+
+            cursor_y += 16.0; // spacing between roots
+        }
     }
 
     cursor_y
+}
+
+fn paint_block_bbox(painter: &egui::Painter, bbox: Rect) {
+    let bbox = bbox.expand(4.0);
+
+    if true {
+        // TODO: rounded corners
+        let path = [
+            bbox.left_top(),
+            bbox.right_top(),
+            bbox.right_bottom(),
+            bbox.left_bottom(),
+            bbox.left_top(),
+        ];
+        let stroke = Stroke::new(1.0, Color32::WHITE.linear_multiply(0.25));
+        painter.add(Shape::Vec(Shape::dashed_line(&path, stroke, 5.0, 1.0)));
+    } else {
+        painter.rect_stroke(
+            bbox,
+            4.0,
+            Stroke::new(1.0, Color32::WHITE.linear_multiply(0.25)),
+        );
+    }
 }
 
 fn paint_node_and_children(
@@ -297,9 +356,12 @@ fn paint_node_and_children(
     info: &Info,
     span_tree: &SpanTree,
     node: &SpanNode,
+    bbox: &mut Rect,
     cursor_y: &mut f32,
+    deferred_roots: &mut VecDeque<DeferredRoot>,
 ) -> PaintResult {
     let result = paint_span(options, info, span_tree, node, *cursor_y);
+    *bbox = bbox.union(result.rect);
     *cursor_y += options.rect_height + options.spacing;
 
     let parent_bottom_y = *cursor_y;
@@ -308,31 +370,33 @@ fn paint_node_and_children(
     // There can be only one "direct" child.
     // We paint the direct child close (directly under),
     // and the indirect children with arrows down to them.
-    let direct_child = span_tree.direct_child_of(node);
+    let direct_children = span_tree.direct_children_of(node);
 
-    if let Some(direct_child) = &direct_child {
-        if let Some(child) = span_tree.nodes.get(direct_child) {
-            paint_node_and_children(options, info, span_tree, child, cursor_y);
+    let direct_children_start_y = *cursor_y;
+    for child_id in &direct_children {
+        if let Some(child) = span_tree.nodes.get(child_id) {
+            let mut child_cursor_y = direct_children_start_y;
+            paint_node_and_children(
+                options,
+                info,
+                span_tree,
+                child,
+                bbox,
+                &mut child_cursor_y,
+                deferred_roots,
+            );
+            *cursor_y = cursor_y.max(child_cursor_y);
         }
     }
 
-    for child in &node.children {
-        if Some(*child) != direct_child {
-            if let Some(child) = span_tree.nodes.get(child) {
-                *cursor_y += 8.0; // spacing between spawned children
+    let direct_children: HashSet<_> = direct_children.iter().copied().collect();
 
-                let child_top_y = *cursor_y;
-                let result = paint_node_and_children(options, info, span_tree, child, cursor_y);
-
-                if let Some(child_color) = result.color {
-                    let x = result.rect.left();
-                    let path = [pos2(x, parent_bottom_y), pos2(x, child_top_y)];
-                    let stroke = Stroke::new(1.0, child_color * 0.5);
-                    info.painter
-                        .add(Shape::Vec(Shape::dashed_line(&path, stroke, 5.0, 1.0)));
-                    // TODO: paint the line UNDER everything else (needs egui improvement).
-                }
-            }
+    for child_id in &node.children {
+        if !direct_children.contains(child_id) {
+            deferred_roots.push_back(DeferredRoot {
+                parent_bottom_y: Some(parent_bottom_y),
+                node_id: *child_id,
+            });
         }
     }
 

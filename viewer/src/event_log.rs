@@ -16,7 +16,8 @@ pub struct EventLog {
 
 impl EventLog {
     pub fn on_message(&mut self, msg: rr_data::Message) {
-        self.span_tree.on_mesage(&msg);
+        let warnings = false; // we reuse the same structure and that will produce problems.
+        self.span_tree.on_mesage(&msg, warnings);
         self.lines.push(Line::Message(msg));
     }
 

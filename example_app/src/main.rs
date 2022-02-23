@@ -9,10 +9,12 @@ async fn main() {
     {
         let _guard = tracing::info_span!("main").entered();
 
-        for run in 0..1 {
+        for run in 0..2 {
+            let _guard = tracing::info_span!("run", run).entered();
+
             let mut handles = vec![];
             {
-                let _guard = tracing::info_span!("spawn", run).entered();
+                let _guard = tracing::info_span!("spawn").entered();
 
                 for task_nr in 0..2 {
                     let child_span = tracing::info_span!("task", task_nr).or_current();
@@ -23,9 +25,9 @@ async fn main() {
                     });
                     handles.push(handle);
                 }
-
-                std::thread::sleep(std::time::Duration::from_millis(20));
             }
+
+            std::thread::sleep(std::time::Duration::from_millis(20));
 
             {
                 let _guard = tracing::info_span!("join").entered();

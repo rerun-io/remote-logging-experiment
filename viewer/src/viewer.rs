@@ -175,6 +175,6 @@ impl TopicViewer {
 
     pub fn on_message(&mut self, rr_msg: &rr_data::Message) {
         self.data_event_log.on_message(rr_msg);
-        self.span_tree.on_mesage(rr_msg);
+        self.span_tree.on_mesage(rr_msg, true);
     }
 }
