@@ -4,6 +4,14 @@ This is an experiment in communicating log events (from [`tracing`](https://crat
 
 This is a just a prototype, and not ready for production.
 
+## Testing it
+``` sh
+cargo run --release -p example_app
+```
+
+You should get a browser showing this (you may need to refresh):
+<img src="media/screenshot.png">
+
 ## Architecture
 
 * The `logger` connects to a `pub_sub_server` with using web-sockets, and sends all log events as they come.
