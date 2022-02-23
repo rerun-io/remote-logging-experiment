@@ -835,6 +835,8 @@ checksum = "77f3309417938f28bf8228fcff79a4a37103981e3e186d2ccd19c74b38f4eb71"
 [[package]]
 name = "ewebsock"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38632fd4c16c2894e76d119cd54e0901f81ce5a0860da22d5c49649c4763f287"
 dependencies = [
  "async-stream",
  "futures",

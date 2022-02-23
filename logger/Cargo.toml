@@ -13,7 +13,7 @@ include = [
 ]
 
 [dependencies]
-ewebsock = { path = "../ewebsock" }
+ewebsock = "0.1"
 parking_lot = "0.12"
 rr_data = { path = "../rr_data" }
 serde = { version = "1", features = ["derive"] }

@@ -1,7 +1,6 @@
 [workspace]
 resolver = "2"
 members = [
-    "ewebsock",
     "example_app",
     "logger",
     "native_helper",

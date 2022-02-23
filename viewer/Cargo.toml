@@ -16,10 +16,10 @@ include = [
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-ewebsock = { path = "../ewebsock" }
 rr_data = { path = "../rr_data" }
 
 eframe = { version = "0.17.0", features = ["persistence"] }
+ewebsock = "0.1"
 itertools = "0.10"
 rand = { version = "0.8", features = ["small_rng"] }
 serde = { version = "1", features = ["derive"] }
