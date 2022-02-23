@@ -29,8 +29,8 @@ async-stream = { version = "0.3", optional = true }
 futures = { version = "0.3", optional = true }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"], optional = true }
 tokio = { version = "1.16", features = ["rt", "sync"], optional = true }
-tokio-tungstenite = { version = "0.16", optional = true }
-tungstenite = { version = "0.16", optional = true }
+tokio-tungstenite = { version = "0.17", optional = true }
+tungstenite = { version = "0.17", optional = true }
 
 # web:
 [target.'cfg(target_arch = "wasm32")'.dependencies]

@@ -39,25 +39,29 @@ pub async fn ws_connect_async(
         .forward(write);
 
     let reader = read.for_each(move |event| {
-        let ws_event = match event {
+        match event {
             Ok(message) => match message {
                 tungstenite::protocol::Message::Text(text) => {
-                    WsEvent::Message(WsMessage::Text(text))
+                    on_event(WsEvent::Message(WsMessage::Text(text)));
                 }
                 tungstenite::protocol::Message::Binary(data) => {
-                    WsEvent::Message(WsMessage::Binary(data))
+                    on_event(WsEvent::Message(WsMessage::Binary(data)));
                 }
                 tungstenite::protocol::Message::Ping(data) => {
-                    WsEvent::Message(WsMessage::Ping(data))
+                    on_event(WsEvent::Message(WsMessage::Ping(data)));
                 }
                 tungstenite::protocol::Message::Pong(data) => {
-                    WsEvent::Message(WsMessage::Pong(data))
+                    on_event(WsEvent::Message(WsMessage::Pong(data)));
                 }
-                tungstenite::protocol::Message::Close(_) => WsEvent::Closed,
+                tungstenite::protocol::Message::Close(_) => {
+                    on_event(WsEvent::Closed);
+                }
+                tungstenite::protocol::Message::Frame(_) => {}
             },
-            Err(err) => WsEvent::Error(err.to_string()),
+            Err(err) => {
+                on_event(WsEvent::Error(err.to_string()));
+            }
         };
-        on_event(ws_event);
         async {}
     });
 

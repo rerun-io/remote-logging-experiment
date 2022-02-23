@@ -27,7 +27,7 @@ tokio = { version = "1.0.0", default-features = false, features = [
     "sync",
     "time",
 ] }
-tokio-tungstenite = "0.16.1"
+tokio-tungstenite = "0.17.1"
 tracing = "0.1"
 tracing-subscriber = "0.3"
-tungstenite = { version = "0.16", default-features = false }
+tungstenite = { version = "0.17", default-features = false }

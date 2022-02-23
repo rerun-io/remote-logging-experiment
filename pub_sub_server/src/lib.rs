@@ -190,6 +190,10 @@ async fn on_msg(
             tracing::debug!("Received close: {:?}", close_frame);
             ControlFlow::Break(())
         }
+        tungstenite::Message::Frame(_) => {
+            tracing::debug!("Received Frame"); // shouldn't happen
+            ControlFlow::Continue(())
+        }
     }
 }
 
