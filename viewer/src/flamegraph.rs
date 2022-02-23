@@ -2,7 +2,7 @@ use crate::span_tree::{SpanNode, SpanTree};
 use eframe::egui;
 use egui::*;
 use rr_data::{CallsiteId, SpanId};
-use std::collections::{HashSet, VecDeque};
+use std::collections::{BinaryHeap, HashSet};
 
 type NanoSecond = i64;
 
@@ -270,12 +270,52 @@ fn interact_with_canvas(view: &mut FlameGraph, response: &Response, info: &Info)
 
 // ----------------------------------------------------------------------------
 
+#[derive(PartialEq)]
 struct DeferredRoot {
     /// The parent that spawned us (if any) was painted here.
     /// Used to paint a connecting line.
     parent_bottom_y: Option<f32>,
 
     node_id: SpanId,
+
+    start_time: Option<rr_data::Time>,
+}
+
+impl std::cmp::Eq for DeferredRoot {}
+
+impl std::cmp::Ord for DeferredRoot {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other.start_time.cmp(&self.start_time) // greatest first in BinaryHeap
+    }
+}
+
+impl PartialOrd for DeferredRoot {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+// ----------------------------------------------------------------------------
+
+#[derive(Default)]
+struct Placer {
+    placed: Vec<Rect>,
+}
+
+impl Placer {
+    /// We want to position a new block that starts at this x (we don't know where it finishes).
+    ///
+    /// Try to place it as high as possible, but no higher.
+    pub fn suggest_top_y(&self, left_x: f32) -> f32 {
+        // TODO: proper skyline algorithm to avoid O(N^2)
+        let mut min_y = 0.0;
+        for placed in &self.placed {
+            if left_x < placed.max.x {
+                min_y = placed.max.y.max(min_y);
+            }
+        }
+        min_y
+    }
 }
 
 /// Paints the actual flamegraph
@@ -286,19 +326,29 @@ fn ui_canvas(options: &mut FlameGraph, info: &Info, span_tree: &SpanTree) -> f32
         options.zoom_to_relative_ns_range = None;
     }
 
-    // We paint the threads top-down
-    let mut cursor_y = info.canvas.top();
-    cursor_y += info.text_height; // Leave room for time labels
-
-    let mut roots = VecDeque::from_iter(span_tree.roots.iter().map(|&node_id| DeferredRoot {
-        parent_bottom_y: None,
-        node_id,
+    let mut roots = BinaryHeap::from_iter(span_tree.roots.iter().filter_map(|&node_id| {
+        Some(DeferredRoot {
+            parent_bottom_y: None,
+            node_id,
+            start_time: span_tree.nodes.get(&node_id)?.lifetime.min,
+        })
     }));
 
-    while let Some(root) = roots.pop_front() {
+    // We paint the scopes top-down
+    let min_y = info.canvas.top() + info.text_height; // Leave room for time labels
+    let mut placer = Placer::default();
+    let mut max_y = min_y;
+
+    while let Some(root) = roots.pop() {
         if let Some(node) = span_tree.nodes.get(&root.node_id) {
-            let child_top_y = cursor_y;
+            let left_x = node.lifetime.min.map_or(f32::NEG_INFINITY, |time| {
+                info.point_from_ns(options, time.nanos_since_epoch())
+            });
+
+            let y_root_spacing = 20.0;
+            let child_top_y = placer.suggest_top_y(left_x).at_least(min_y) + y_root_spacing;
             let mut bbox = Rect::NOTHING;
+            let mut cursor_y = child_top_y;
             let result = paint_node_and_children(
                 options,
                 info,
@@ -309,6 +359,8 @@ fn ui_canvas(options: &mut FlameGraph, info: &Info, span_tree: &SpanTree) -> f32
                 &mut roots,
             );
             paint_block_bbox(&info.painter, bbox);
+            placer.placed.push(bbox);
+            max_y = max_y.max(bbox.max.y);
 
             if let Some(parent_bottom_y) = root.parent_bottom_y {
                 if let Some(child_color) = result.color {
@@ -320,12 +372,10 @@ fn ui_canvas(options: &mut FlameGraph, info: &Info, span_tree: &SpanTree) -> f32
                     // TODO: paint the line UNDER everything else (needs egui improvements).
                 }
             }
-
-            cursor_y += 16.0; // spacing between roots
         }
     }
 
-    cursor_y
+    max_y
 }
 
 fn paint_block_bbox(painter: &egui::Painter, bbox: Rect) {
@@ -358,7 +408,7 @@ fn paint_node_and_children(
     node: &SpanNode,
     bbox: &mut Rect,
     cursor_y: &mut f32,
-    deferred_roots: &mut VecDeque<DeferredRoot>,
+    deferred_roots: &mut BinaryHeap<DeferredRoot>,
 ) -> PaintResult {
     let result = paint_span(options, info, span_tree, node, *cursor_y);
     *bbox = bbox.union(result.rect);
@@ -393,10 +443,13 @@ fn paint_node_and_children(
 
     for child_id in &node.children {
         if !direct_children.contains(child_id) {
-            deferred_roots.push_back(DeferredRoot {
-                parent_bottom_y: Some(parent_bottom_y),
-                node_id: *child_id,
-            });
+            if let Some(child) = span_tree.nodes.get(child_id) {
+                deferred_roots.push(DeferredRoot {
+                    parent_bottom_y: Some(parent_bottom_y),
+                    node_id: *child_id,
+                    start_time: child.lifetime.min,
+                });
+            }
         }
     }
 

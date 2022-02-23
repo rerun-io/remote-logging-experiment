@@ -82,13 +82,14 @@ impl Server {
     }
 }
 
-async fn accept_connection(topics: Arc<Topics>, peer: SocketAddr, stream: TcpStream) {
-    let span = tracing::span!(
-        tracing::Level::INFO,
-        "Connection",
-        peer = peer.to_string().as_str()
-    );
-    let _enter = span.enter();
+async fn accept_connection(topics: Arc<Topics>, _peer: SocketAddr, stream: TcpStream) {
+    // let span = tracing::span!(
+    //     tracing::Level::INFO,
+    //     "Connection",
+    //     peer = _peer.to_string().as_str()
+    // );
+    // let _enter = span.enter();
+
     tracing::info!("New WebSocket connection");
 
     if let Err(e) = handle_connection(&topics, stream).await {
