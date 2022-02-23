@@ -15,7 +15,8 @@ fn main() {
     rerun_if_changed("../viewer/Cargo.toml");
     rerun_if_changed("../viewer/src/**/*.rs");
 
-    std::process::Command::new("../viewer/build_web.sh")
-        .output()
-        .expect("failed to build viewer for web");
+    // Disabled, because it hangs :(
+    // std::process::Command::new("../viewer/build_web.sh")
+    //     .output()
+    //     .expect("failed to build viewer for web");
 }
