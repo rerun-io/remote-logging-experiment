@@ -2,6 +2,7 @@
 # This scripts runs various CI-like checks in a convenient way.
 set -eux
 
+./viewer/build_web.sh --fast
 cargo check --workspace --all-targets
 cargo check -p viewer -p example_app --all-features --lib --target wasm32-unknown-unknown
 cargo fmt --all -- --check

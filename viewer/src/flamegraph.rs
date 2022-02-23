@@ -80,6 +80,7 @@ impl Info {
 
 // ----------------------------------------------------------------------------
 
+/// Paint spans top-down
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct FlameGraph {
@@ -270,8 +271,11 @@ fn interact_with_canvas(view: &mut FlameGraph, response: &Response, info: &Info)
 
 // ----------------------------------------------------------------------------
 
+/// A root of a stand-alone task.
+///
+/// This is the root of many spans with "direct" children, i.e. children that are contained in the parent scope.
 #[derive(PartialEq)]
-struct DeferredRoot {
+struct TreeRoot {
     /// The parent that spawned us (if any) was painted here.
     /// Used to paint a connecting line.
     parent_bottom_y: Option<f32>,
@@ -281,15 +285,15 @@ struct DeferredRoot {
     start_time: Option<rr_data::Time>,
 }
 
-impl std::cmp::Eq for DeferredRoot {}
+impl std::cmp::Eq for TreeRoot {}
 
-impl std::cmp::Ord for DeferredRoot {
+impl std::cmp::Ord for TreeRoot {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         other.start_time.cmp(&self.start_time) // greatest first in BinaryHeap
     }
 }
 
-impl PartialOrd for DeferredRoot {
+impl PartialOrd for TreeRoot {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
@@ -297,6 +301,7 @@ impl PartialOrd for DeferredRoot {
 
 // ----------------------------------------------------------------------------
 
+/// Used to place out [`TreeRoot`] so they do not cover each other.
 #[derive(Default)]
 struct Placer {
     placed: Vec<Rect>,
@@ -327,7 +332,7 @@ fn ui_canvas(options: &mut FlameGraph, info: &Info, span_tree: &SpanTree) -> f32
     }
 
     let mut roots = BinaryHeap::from_iter(span_tree.roots.iter().filter_map(|&node_id| {
-        Some(DeferredRoot {
+        Some(TreeRoot {
             parent_bottom_y: None,
             node_id,
             start_time: span_tree.nodes.get(&node_id)?.lifetime.min,
@@ -347,6 +352,7 @@ fn ui_canvas(options: &mut FlameGraph, info: &Info, span_tree: &SpanTree) -> f32
 
             let y_root_spacing = 20.0;
             let child_top_y = placer.suggest_top_y(left_x).at_least(min_y) + y_root_spacing;
+
             let mut bbox = Rect::NOTHING;
             let mut cursor_y = child_top_y;
             let result = paint_node_and_children(
@@ -408,7 +414,7 @@ fn paint_node_and_children(
     node: &SpanNode,
     bbox: &mut Rect,
     cursor_y: &mut f32,
-    deferred_roots: &mut BinaryHeap<DeferredRoot>,
+    deferred_roots: &mut BinaryHeap<TreeRoot>,
 ) -> PaintResult {
     let result = paint_span(options, info, span_tree, node, *cursor_y);
     *bbox = bbox.union(result.rect);
@@ -444,7 +450,7 @@ fn paint_node_and_children(
     for child_id in &node.children {
         if !direct_children.contains(child_id) {
             if let Some(child) = span_tree.nodes.get(child_id) {
-                deferred_roots.push(DeferredRoot {
+                deferred_roots.push(TreeRoot {
                     parent_bottom_y: Some(parent_bottom_y),
                     node_id: *child_id,
                     start_time: child.lifetime.min,

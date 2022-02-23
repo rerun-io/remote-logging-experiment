@@ -1,9 +1,6 @@
 # Rust Observability Experiment
 
-[![dependency status](https://deps.rs/repo/github/emilk/websocket_experiment/status.svg)](https://deps.rs/repo/github/emilk/websocket_experiment)
-[![Build Status](https://github.com/emilk/websocket_experiment/workflows/CI/badge.svg)](https://github.com/emilk/websocket_experiment/actions?workflow=CI)
-
-This is an experiemnt in communicating log events (from [`tracing`](https://crates.io/crates/tracing/)) over websockets, from an app to a viewer.
+This is an experiment in communicating log events (from [`tracing`](https://crates.io/crates/tracing/)) over websockets, from an app to a viewer.
 
 This is a just a prototype, and not ready for production.
 
